@@ -51,6 +51,41 @@ describe('siloFromConfig', () => {
   });
 });
 
+describe('lengths in their own units', () => {
+  it('reads each length in its unit, or in the default one', () => {
+    // The manufacturer's sheet: 9 ft wide, 32 in rings, a 7 ft hopper, a 2 ft roof.
+    const mixed = siloFromConfig({
+      ...bin,
+      unit: 'ft',
+      diameter: 9,
+      ring_height: 32,
+      ring_height_unit: 'in',
+      top_height: 2,
+      bottom_height: 7,
+    })!;
+    const inches = siloFromConfig(bin)!;
+    expect(mixed.height).toBeCloseTo(inches.height, 9);
+    expect(mixed.capacity).toBeCloseTo(inches.capacity, 9);
+    expect(mixed.density).toBeCloseTo(inches.density!, 9);
+  });
+
+  it('gives the lid its own unit, and fills the roof up to it', () => {
+    const lid = siloFromConfig({ ...bin, include_roof: true, top_opening: 18 })!;
+    const pointed = siloFromConfig({ ...bin, include_roof: true })!;
+    expect(lid.parts.at(-1)!.w1).toBeCloseTo(18 * 0.0254);
+    expect(lid.capacity).toBeGreaterThan(pointed.capacity);
+    const inFeet = siloFromConfig({ ...bin, include_roof: true, top_opening: 1.5, top_opening_unit: 'ft' })!;
+    expect(inFeet.capacity).toBeCloseTo(lid.capacity, 9);
+  });
+
+  it('knows millimetres', () => {
+    const silo = siloFromConfig(config({ unit: 'mm', diameter: 2000, ring_height: 3000, top: 'flat' }))!;
+    expect(silo.height).toBeCloseTo(3);
+    expect(silo.capacity).toBeCloseTo(Math.PI * 3);
+    expect(convertLength(2.743, 'm', 'mm')).toBe(2743);
+  });
+});
+
 describe('readSilo', () => {
   const silo = siloFromConfig(bin)!;
   const ton = KILOGRAMS.ton;

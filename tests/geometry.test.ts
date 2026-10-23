@@ -19,6 +19,7 @@ const base: SiloGeometry = {
   ringHeight: 3,
   top: 'flat',
   topHeight: 0,
+  topOpening: 0,
   bottom: 'flat',
   bottomHeight: 0,
   outlet: 0,
@@ -65,6 +66,15 @@ describe('volumes', () => {
 
     const dome = buildParts({ ...base, top: 'dome', topHeight: 3 })[1];
     expect(partVolume(dome, 'round')).toBeCloseTo((2 / 3) * cylinder);
+  });
+
+  it('cuts a cone roof at its lid', () => {
+    // Frustum r 1 → 0.25, h 3: the same volume as the hopper below, upside down.
+    const roof = buildParts({ ...base, top: 'cone', topHeight: 3, topOpening: 0.5 })[1];
+    expect(roof.w1).toBe(0.5);
+    expect(partVolume(roof, 'round')).toBeCloseTo(Math.PI * (1 + 0.25 + 0.0625));
+    // A dome has no lid.
+    expect(buildParts({ ...base, top: 'dome', topHeight: 3, topOpening: 0.5 })[1].w1).toBe(0);
   });
 
   it('handles a hopper that ends in an outlet', () => {
