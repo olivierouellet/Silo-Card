@@ -1,0 +1,167 @@
+# A grain level sensor for the Silo integration and Silo Card: an ESP32-C3 and a MaxBotix HRXL-MaxSonar-WR
+# ultrasonic sensor (TTL output), fixed at the top of the silo and pointing down.
+#
+# The firmware only measures the distance down to the grain. The silo's shape, the tons and what's left
+# to order are worked out by the Silo integration (or the card), so the same firmware fits every silo:
+# only the substitutions change.
+#
+# components/hrxl_maxsonar_fgl reads the sensor's "R####" frames (millimetres) and skips the backlog,
+# so each reading is the latest one.
+
+substitutions:
+
+############################################################
+############### Configurations #############################
+############################################################
+
+  grain_bin_name: silo-1
+  grain_bin_friendly_name: Silo 1
+
+############### Home Assistant names ########################
+
+  distance_sensor: Distance to grain
+
+############### Bin measurements #############################
+
+  # From the sensor down to the lowest point of the silo (the floor, or the tip of the hopper), in metres.
+  # For a bin with a 7 ft hopper, 7 rings of 32 in and a 2 ft roof: 7 ft + 7 × 32 in + 2 ft = 8.433 m.
+  sensor_height: " 8.433 "
+
+############### Network configs #############################
+
+  ssid_name: !secret wifi_ssid
+  ssid_password: !secret wifi_password
+  api_key: !secret api_key
+  ota_password: !secret ota_password
+  api_reboot_timeout: "0s"
+  fast_connect: "false"
+  output_power: "14dB"
+  power_save_mode: "none"
+  wifi_reboot_timeout: 0s
+
+################### Variables ##############################
+
+  # The sensor can't see closer than 0.50 m: it then reports 0.50 m, and 0 on a bad frame.
+  # Under this, the value is considered an outlier.
+  distance_min: " 0.50 "
+  # A reading up to sensor_height + distance_max_margin is the floor; further is an outlier.
+  distance_max_margin: " 0.50 "
+
+################### Board config ###########################
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+    version: recommended
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+uart:
+  rx_pin: 20
+  baud_rate: 9600
+  data_bits: 8
+  stop_bits: 1
+  parity: NONE
+
+############################################################
+############### End of configs #############################
+############################################################
+
+
+
+################### API, Wifi, OTA #########################
+
+esphome:
+  name: $grain_bin_name
+  friendly_name: $grain_bin_friendly_name
+  platformio_options:
+    build_flags:
+      - -DARDUINO_USB_MODE=0
+      - -DARDUINO_USB_CDC_ON_BOOT=0
+
+api:
+  encryption:
+    key: $api_key
+  reboot_timeout: $api_reboot_timeout
+
+ota:
+  platform: esphome
+  password: $ota_password
+
+wifi:
+  ssid: $ssid_name
+  password: $ssid_password
+  fast_connect: $fast_connect
+  min_auth_mode: WPA2
+  output_power: $output_power
+  power_save_mode: $power_save_mode
+  reboot_timeout: $wifi_reboot_timeout
+  # A fixed address helps when the barn's Wi-Fi is weak:
+  # manual_ip:
+  #   static_ip: 192.168.1.50
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+
+################### Sensors ################################
+
+external_components:
+  - source:
+      type: local
+      path: components
+
+sensor:
+
+  - platform: hrxl_maxsonar_fgl
+    name: $distance_sensor
+    id: distance_measured
+    # Result in mm with a frequency of 6 measurements per second.
+    # 500  = targets closer than 500 mm will typically range as 500 mm
+    # 9998 = maximum reported value
+    # 9999 = no target being detected in the field of view
+    device_class: "distance"
+    state_class: "measurement"
+    unit_of_measurement: "m"
+    accuracy_decimals: 3
+    filters:
+      - lambda: |-
+          float SENSOR_HEIGHT = $sensor_height;
+          float MIN_DISTANCE = $distance_min;
+          float MAX_MARGIN_DISTANCE = $distance_max_margin;
+          float DISTANCE = ((float)x) / 1000.0;
+          if ( MIN_DISTANCE < DISTANCE && DISTANCE <= SENSOR_HEIGHT ) {
+            return DISTANCE ;
+          } else if ( SENSOR_HEIGHT < DISTANCE && DISTANCE <= ( SENSOR_HEIGHT + MAX_MARGIN_DISTANCE )) {
+            return SENSOR_HEIGHT ;
+          } else {
+            return NAN ;
+          }
+      - filter_out: NAN
+      # Median of about 5 seconds of readings, to drop the odd echo off a wall or the fill tube
+      - median:
+          window_size: 31
+          send_every: 6
+          send_first_at: 6
+      # Send a change of 5 cm right away, and otherwise at most every 10 minutes
+      - or:
+          - delta: 0.05
+          - throttle: 600s
+
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+
+  - platform: uptime
+    name: Uptime Sensor
+
+############### Additional info  #############################
+
+# Maxbotix pins :
+# GND - VCC - Tx - X - X - X - X
+#
+# Flashing device :
+# -----------------
+# Press and hold BOOT
+# Press and release RESET
+# Release BOOT when you get "Preparing Installation" message

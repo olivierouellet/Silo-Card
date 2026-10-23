@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Silo Card</title>
+  <rect width="128" height="128" rx="28" fill="#7a5312"/>
+  <!-- Legs -->
+  <path d="M42 86 V112 M86 86 V112" stroke="#f7ead2" stroke-width="5" stroke-linecap="round"/>
+  <!-- Grain: hopper and the lower rings -->
+  <path d="M38 56 H90 V86 L64 106 L38 86 Z" fill="#e5b65a"/>
+  <!-- Walls: roof, rings, hopper -->
+  <path d="M38 36 L64 20 L90 36 V86 L64 106 L38 86 Z" fill="none" stroke="#f7ead2" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M38 46 H90 M38 56 H90 M38 66 H90 M38 76 H90 M38 86 H90" stroke="#f7ead2" stroke-width="3"/>
+  <!-- Sensor and its beam -->
+  <rect x="58" y="12" width="12" height="7" rx="2" fill="#4fc3f7"/>
+  <path d="M64 22 V54" stroke="#4fc3f7" stroke-width="2.5" stroke-dasharray="4 4"/>
+</svg>
