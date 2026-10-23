@@ -20,15 +20,15 @@
 
 A Home Assistant dashboard card that draws your grain silo or bin to scale, **section by section**, and fills it to the level a sensor measures.
 
-- Describe your silo once: round or square, a **cone, dome or flat roof**, the **rings** of the wall, and a **flat floor or cone hopper** (pointed, or ending in an outlet).
+- Describe your silo once: round or square, a **cone (pointed or with a flat lid), dome or flat roof**, the **rings** of the wall, and a **flat floor or cone hopper** (pointed, or ending in an outlet).
 - The hopper, every ring and the roof are drawn as separate sections. Hover one to see how full it is.
 - From a **distance sensor at the top** (an ultrasonic sensor on ESPHome, for example), or any sensor giving the grain's height.
 - Shows the percentage full, the **weight**, the **room left** (what to order), the grain height, where the grain is (“4.3 of 7 rings”), the volume, and the distance from the sensor.
 - Weight from the **grain** (standard bushel weights for wheat, corn, barley, oats, soybeans, canola…), your own **density**, or the manufacturer's **capacity**.
-- Metric or imperial: metres, centimetres, feet or inches; tonnes, short tons, kilograms or pounds; m³, litres, ft³ or bushels.
+- Metric or imperial, and a unit for each length if you like (feet for the bin, inches for the rings): metres, centimetres, millimetres, feet or inches; tonnes, short tons, kilograms or pounds; m³, litres, ft³ or bushels.
 - A choice of four grain textures: stipple, layers, shading or hatching.
 - Turns the warning colour under a level you choose.
-- A visual editor; drag the lines beside the silo into the order you want. **English and French**, following Home Assistant's language or set per card. Follows your theme (light and dark).
+- A visual editor, with a **Tiles** list: drag a tile's handle to reorder the lines beside the silo, and switch each one on or off. **English and French**, following Home Assistant's language or set per card. Follows your theme (light and dark).
 
 ### Two ways to use it
 
@@ -63,8 +63,8 @@ Then add the card from the card picker (search for “Silo”).
 ### Measuring your silo
 
 ```text
-        ▲ sensor
-       ╱ ╲          top_height       (roof: cone, dome or flat)
+       ▄▄▄ sensor   top_opening      (the lid)
+      ╱   ╲         top_height       (roof: cone, dome or flat)
       ├───┤  ─┐
       │   │   │
       ├───┤   │     rings × ring_height
@@ -76,7 +76,7 @@ Then add the card from the card picker (search for “Silo”).
      diameter
 ```
 
-Every length is in `unit`. The silo's lowest point (the floor, or the tip of the hopper) is height 0. By default the sensor is at the very top of the roof; if it is lower (in a hatch, for example), set `sensor_height`.
+Every length is in `unit`, or in its own unit (`ring_height_unit: in`…): mix them as on the manufacturer's sheet. The silo's lowest point (the floor, or the tip of the hopper) is height 0. By default the sensor is at the very top of the roof; if it is lower (in a hatch, for example), set `sensor_height`.
 
 Full means filled to the eave, the top of the wall, which is how most bins are rated; the grain that fills the roof then shows above 100 %. Set `include_roof: true` to count the roof as part of the capacity.
 
@@ -87,13 +87,15 @@ Full means filled to the eave, the top of the wall, which is how most bins are r
 | `entity` | — | The Silo integration's *Fill level* sensor, or the sensor that measures the grain. With the integration, the options from `measure` to `include_roof` come from it, and the card ignores them. |
 | `measure` | `distance` | `distance`: the sensor measures from the top down to the grain. `level`: it gives the grain's height. |
 | `sensor_height` | top of the silo | Height of the sensor above the silo's lowest point, with `measure: distance`. |
-| `unit` | `m` | Unit of every length: `m`, `cm`, `ft` or `in`. |
+| `unit` | `m` | Default unit of the lengths: `m`, `cm`, `mm`, `ft` or `in`. |
+| `diameter_unit`, `ring_height_unit`, `top_height_unit`, `bottom_height_unit`, `outlet_unit`, `sensor_height_unit` | `unit` | A length's own unit, when it isn't the default one: enter the silo as the manufacturer gives it (`unit: ft`, `ring_height: 32`, `ring_height_unit: in`). |
 | `shape` | `round` | Cross-section: `round` or `square` (then `diameter` is the side). |
 | `diameter` | — | **Required.** Width of the wall. |
 | `rings` | `1` | Number of rings in the wall. A plain wall is 1 ring as tall as the wall. |
 | `ring_height` | — | **Required.** Height of one ring. |
 | `top` | `cone` | Roof: `cone`, `dome` or `flat`. |
 | `top_height` | `0` | Height of the roof. |
+| `top_opening` | `0` | Diameter of the flat lid at the top of a cone roof; 0 when it comes to a point. |
 | `bottom` | `flat` | Bottom: `flat` floor or `cone` hopper. |
 | `bottom_height` | `0` | Height of the hopper. |
 | `outlet` | `0` | Diameter at the bottom of the hopper; 0 when it comes to a point. |
@@ -112,12 +114,17 @@ Full means filled to the eave, the top of the wall, which is how most bins are r
 | `title` | device name | Card title. |
 | `icon` | `mdi:silo` | Header icon. |
 | `color` | amber | Grain colour: a theme colour name (`amber`, `brown`, `green`…) or any CSS colour. |
-| `rows` | `[weight, remaining, level, rings]` | The lines beside the silo, in this order: `weight` (needs a grain, density or capacity), `remaining` (room left, in weight), `volume`, `level` (grain height), `rings` (“4.3 of 7”, or how full the hopper or roof is) and `distance` (from the sensor down to the grain). |
+| `primary` | `percent` | The big value at the top: `percent` (“59% full”) or any of the `rows` below, for example `rings` (“3.8 of 7 rings”, or “60% of the hopper”). Without a grain, density or capacity, `weight` and `remaining` show the fill instead. |
+| `rows` | `[weight, remaining, level, rings]` | The lines beside the silo, in this order: `percent` (the fill), `weight` (needs a grain, density or capacity), `remaining` (room left, in weight), `volume`, `level` (grain height), `rings` (“4.3 of 7”, or how full the hopper or roof is) and `distance` (from the sensor down to the grain). |
 | `texture` | `stipple` | Over the grain colour: `stipple` (fine dots), `layers` (soft wavy lines), `shaded` (no pattern: a round bin's shading) or `hatching` (thin 45° lines). |
+| `labels` | `text` | `text`: each line's name. `icons`: an icon instead (the name shows on hover). |
+| `layout` | `auto` | `auto`: the silo beside the numbers, above them when the card is narrow. `side` or `stacked` to choose. |
 | `show_sensor` | `true` | Draw the sensor and its beam. |
 | `language` | `auto` | `auto` (Home Assistant's language), `en` or `fr`. |
 
 Tap the card to open the sensor's history.
+
+In a sections view the card is as tall as it needs (*Auto height* in the *Layout* tab). Given a fixed height there instead, it draws the silo smaller to fit, down to 3 rows. When the card is narrow, the silo goes above the numbers.
 
 ### Examples
 
@@ -126,23 +133,25 @@ With the Silo integration, the silo comes from its sensor:
 ```yaml
 type: custom:silo-card
 entity: sensor.soue_1_ben_2_fill_level
-rows: [remaining, weight, rings]
+primary: rings               # “3.8 of 7 rings” as the big value
+rows: [percent, remaining, weight]
 display_unit: m              # the silo was entered in inches
 display_weight_unit: t       # and its capacity in short tons
 ```
 
-On its own, a hopper bin in inches, with the manufacturer's capacity of 3 short tons a ring:
+On its own, a hopper bin as on the manufacturer's sheet (in feet, with 32-inch rings), and its capacity of 3 short tons a ring:
 
 ```yaml
 type: custom:silo-card
 entity: sensor.bin_1_distance
-unit: in
-diameter: 108
+unit: ft
+diameter: 9
 rings: 7
 ring_height: 32
-top_height: 24
+ring_height_unit: in
+top_height: 2
 bottom: cone
-bottom_height: 84
+bottom_height: 7
 capacity: 3
 capacity_per: ring
 weight_unit: ton
@@ -197,15 +206,15 @@ Without the integration, the numbers are shown on the dashboard only. For automa
 
 Une carte de tableau de bord Home Assistant qui dessine votre silo ou votre cellule à grains à l’échelle, **section par section**, et la remplit jusqu’au niveau mesuré par un capteur.
 
-- Décrivez votre silo une fois : rond ou carré, un **toit en cône, en dôme ou plat**, les **sections** de la paroi, et un **plancher plat ou une trémie en cône** (en pointe ou avec une sortie).
+- Décrivez votre silo une fois : rond ou carré, un **toit en cône (en pointe ou avec un couvercle plat), en dôme ou plat**, les **sections** de la paroi, et un **plancher plat ou une trémie en cône** (en pointe ou avec une sortie).
 - La trémie, chaque section et le toit sont dessinés séparément. Survolez-en une pour voir à quel point elle est pleine.
 - À partir d’un **capteur de distance en haut** (un capteur à ultrasons sur ESPHome, par exemple), ou de tout capteur qui donne la hauteur du grain.
 - Affiche le pourcentage de remplissage, le **poids**, la **place libre** (ce qu’il faut commander), la hauteur du grain, où se trouve le grain (« 4,3 sur 7 sections »), le volume et la distance depuis le capteur.
 - Le poids vient du **grain** (poids standard du boisseau pour le blé, le maïs, l’orge, l’avoine, le soya, le canola…), de votre propre **masse volumique**, ou de la **capacité** du fabricant.
-- Métrique ou impérial : mètres, centimètres, pieds ou pouces; tonnes, tonnes courtes, kilogrammes ou livres; m³, litres, pi³ ou boisseaux.
+- Métrique ou impérial, et une unité pour chaque longueur au besoin (des pieds pour la cellule, des pouces pour les sections) : mètres, centimètres, millimètres, pieds ou pouces; tonnes, tonnes courtes, kilogrammes ou livres; m³, litres, pi³ ou boisseaux.
 - Quatre textures de grain au choix : pointillé, couches, ombrage ou hachures.
 - Passe à la couleur d’avertissement sous le niveau de votre choix.
-- Un éditeur visuel; glissez les lignes à côté du silo dans l’ordre voulu. **Français et anglais**, selon la langue de Home Assistant ou choisi pour chaque carte. Respecte votre thème (clair ou sombre).
+- Un éditeur visuel, avec une liste de **Tuiles** : glissez la poignée d’une tuile pour changer l’ordre des lignes à côté du silo, et affichez ou masquez chacune avec son interrupteur. **Français et anglais**, selon la langue de Home Assistant ou choisi pour chaque carte. Respecte votre thème (clair ou sombre).
 
 ### Deux façons de l’utiliser
 
@@ -240,8 +249,8 @@ Ajoutez ensuite la carte depuis le sélecteur de cartes (cherchez « Silo »).
 ### Mesurer votre silo
 
 ```text
-        ▲ capteur
-       ╱ ╲          top_height       (toit : cône, dôme ou plat)
+       ▄▄▄ capteur  top_opening      (le couvercle)
+      ╱   ╲         top_height       (toit : cône, dôme ou plat)
       ├───┤  ─┐
       │   │   │
       ├───┤   │     rings × ring_height (sections × hauteur d’une section)
@@ -253,7 +262,7 @@ Ajoutez ensuite la carte depuis le sélecteur de cartes (cherchez « Silo »).
      diameter (diamètre)
 ```
 
-Toutes les longueurs sont dans l’unité `unit`. Le point le plus bas du silo (le plancher, ou la pointe de la trémie) est la hauteur 0. Par défaut, le capteur est tout en haut du toit; s’il est plus bas (dans une trappe, par exemple), entrez `sensor_height`.
+Toutes les longueurs sont dans l’unité `unit`, ou dans leur propre unité (`ring_height_unit: in`…) : mélangez-les comme sur la fiche du fabricant. Le point le plus bas du silo (le plancher, ou la pointe de la trémie) est la hauteur 0. Par défaut, le capteur est tout en haut du toit; s’il est plus bas (dans une trappe, par exemple), entrez `sensor_height`.
 
 Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la capacité de la plupart des cellules; le grain qui remplit le toit s’affiche alors au-delà de 100 %. Avec `include_roof: true`, le toit compte dans la capacité.
 
@@ -264,13 +273,15 @@ Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la cap
 | `entity` | — | Le capteur *Taux de remplissage* de l’intégration Silo, ou le capteur qui mesure le grain. Avec l’intégration, les options de `measure` à `include_roof` viennent d’elle, et la carte les ignore. |
 | `measure` | `distance` | `distance` : le capteur mesure du haut jusqu’au grain. `level` : il donne la hauteur du grain. |
 | `sensor_height` | haut du silo | Hauteur du capteur au-dessus du point le plus bas du silo, avec `measure: distance`. |
-| `unit` | `m` | Unité de toutes les longueurs : `m`, `cm`, `ft` (pieds) ou `in` (pouces). |
+| `unit` | `m` | Unité par défaut des longueurs : `m`, `cm`, `mm`, `ft` (pieds) ou `in` (pouces). |
+| `diameter_unit`, `ring_height_unit`, `top_height_unit`, `bottom_height_unit`, `outlet_unit`, `sensor_height_unit` | `unit` | L’unité propre d’une longueur, si ce n’est pas celle par défaut : entrez le silo comme le fabricant le donne (`unit: ft`, `ring_height: 32`, `ring_height_unit: in`). |
 | `shape` | `round` | Section horizontale : `round` (ronde) ou `square` (carrée; `diameter` est alors le côté). |
 | `diameter` | — | **Obligatoire.** Largeur de la paroi. |
 | `rings` | `1` | Nombre de sections de la paroi. Une paroi simple compte pour 1 section de toute sa hauteur. |
 | `ring_height` | — | **Obligatoire.** Hauteur d’une section. |
 | `top` | `cone` | Toit : `cone`, `dome` ou `flat` (plat). |
 | `top_height` | `0` | Hauteur du toit. |
+| `top_opening` | `0` | Diamètre du couvercle plat en haut d’un toit en cône; 0 s’il finit en pointe. |
 | `bottom` | `flat` | Fond : plancher plat (`flat`) ou trémie en cône (`cone`). |
 | `bottom_height` | `0` | Hauteur de la trémie. |
 | `outlet` | `0` | Diamètre au bas de la trémie; 0 si elle finit en pointe. |
@@ -289,12 +300,17 @@ Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la cap
 | `title` | nom de l’appareil | Titre de la carte. |
 | `icon` | `mdi:silo` | Icône de l’en-tête. |
 | `color` | ambre | Couleur du grain : un nom de couleur du thème (`amber`, `brown`, `green`…) ou toute couleur CSS. |
-| `rows` | `[weight, remaining, level, rings]` | Les lignes à côté du silo, dans cet ordre : `weight` (poids; il faut un grain, une masse volumique ou une capacité), `remaining` (place libre, en poids), `volume`, `level` (hauteur du grain), `rings` (« 4,3 sur 7 » sections, ou à quel point la trémie ou le toit est plein) et `distance` (entre le capteur et le grain). |
+| `primary` | `percent` | La grande valeur en haut : `percent` (« 59 % plein ») ou n’importe laquelle des lignes `rows` ci-dessous, par exemple `rings` (« 3,8 sur 7 sections », ou « 60 % de la trémie »). Sans grain, masse volumique ni capacité, `weight` et `remaining` affichent plutôt le remplissage. |
+| `rows` | `[weight, remaining, level, rings]` | Les lignes à côté du silo, dans cet ordre : `percent` (le remplissage), `weight` (poids; il faut un grain, une masse volumique ou une capacité), `remaining` (place libre, en poids), `volume`, `level` (hauteur du grain), `rings` (« 4,3 sur 7 » sections, ou à quel point la trémie ou le toit est plein) et `distance` (entre le capteur et le grain). |
 | `texture` | `stipple` | Par-dessus la couleur du grain : `stipple` (pointillé), `layers` (couches ondulées), `shaded` (sans motif : l’ombrage d’une cellule ronde) ou `hatching` (hachures fines à 45°). |
+| `labels` | `text` | `text` : le nom de chaque ligne. `icons` : une icône à la place (le nom s’affiche au survol). |
+| `layout` | `auto` | `auto` : le silo à côté des valeurs, au-dessus quand la carte est étroite. `side` ou `stacked` pour choisir. |
 | `show_sensor` | `true` | Dessiner le capteur et son faisceau. |
 | `language` | `auto` | `auto` (langue de Home Assistant), `en` ou `fr`. |
 
 Touchez la carte pour ouvrir l’historique du capteur.
+
+Dans une vue en sections, la carte prend la hauteur qu’il lui faut (*Hauteur automatique* dans l’onglet *Mise en page*). Avec une hauteur fixe, elle dessine le silo plus petit pour s’y loger, jusqu’à 3 rangées. Quand la carte est étroite, le silo passe au-dessus des valeurs.
 
 ### Exemples
 
@@ -303,23 +319,25 @@ Avec l’intégration Silo, le silo vient de son capteur :
 ```yaml
 type: custom:silo-card
 entity: sensor.soue_1_ben_2_taux_de_remplissage
-rows: [remaining, weight, rings]
+primary: rings               # « 3,8 sur 7 sections » en grand
+rows: [percent, remaining, weight]
 display_unit: m              # le silo a été entré en pouces
 display_weight_unit: t       # et sa capacité en tonnes courtes
 ```
 
-Seule, une cellule à trémie en pouces, avec la capacité du fabricant de 3 tonnes courtes par section :
+Seule, une cellule à trémie comme sur la fiche du fabricant (en pieds, avec des sections de 32 pouces), et sa capacité de 3 tonnes courtes par section :
 
 ```yaml
 type: custom:silo-card
 entity: sensor.cellule_1_distance
-unit: in
-diameter: 108
+unit: ft
+diameter: 9
 rings: 7
 ring_height: 32
-top_height: 24
+ring_height_unit: in
+top_height: 2
 bottom: cone
-bottom_height: 84
+bottom_height: 7
 capacity: 3
 capacity_per: ring
 weight_unit: ton
