@@ -1,0 +1,6 @@
+{
+  "name": "Silo Card",
+  "render_readme": true,
+  "filename": "silo-card.js",
+  "homeassistant": "2025.1.0"
+}
