@@ -186,9 +186,78 @@ for (const prop of ['data', 'schema']) {
 }
 customElements.define('ha-form', HaForm);
 
+/** ha-expansion-panel: a titled, always-open box. */
+class HaExpansionPanel extends HTMLElement {
+  header = '';
+  connectedCallback() {
+    const shadow = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `<style>:host{display:block;border:1px solid var(--divider-color);border-radius:12px;padding:0 16px 8px}
+      h4{margin:12px 0 4px;font-weight:600}</style><h4></h4><slot></slot>`;
+    shadow.querySelector('h4')!.textContent = `▾ ${this.header}`;
+  }
+}
+customElements.define('ha-expansion-panel', HaExpansionPanel);
+
+/** ha-switch: a checkbox with a `checked` property and a `change` event. */
+class HaSwitch extends HTMLElement {
+  private _input = document.createElement('input');
+  constructor() {
+    super();
+    this._input.type = 'checkbox';
+    this._input.onchange = () => this.dispatchEvent(new Event('change'));
+    this.attachShadow({ mode: 'open' }).append(this._input);
+  }
+  get checked() {
+    return this._input.checked;
+  }
+  set checked(value: boolean) {
+    this._input.checked = value;
+  }
+}
+customElements.define('ha-switch', HaSwitch);
+
+/** ha-sortable: drag a row by its handle (native drag and drop), then `item-moved` with the two indexes. */
+class HaSortable extends HTMLElement {
+  connectedCallback() {
+    let from = -1;
+    const rows = () => [...(this.querySelector('div')?.children ?? [])] as HTMLElement[];
+    this.addEventListener('pointerdown', (ev) => {
+      const handle = (ev.target as HTMLElement).closest(this.getAttribute('handle-selector') ?? '.handle');
+      rows().forEach((row) => (row.draggable = !!handle && row.contains(handle)));
+    });
+    this.addEventListener('dragstart', (ev) => (from = rows().indexOf(ev.target as HTMLElement)));
+    this.addEventListener('dragover', (ev) => ev.preventDefault());
+    this.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const to = rows().findIndex((row) => row.contains(ev.target as Node));
+      if (from >= 0 && to >= 0 && from !== to) {
+        this.dispatchEvent(new CustomEvent('item-moved', { detail: { oldIndex: from, newIndex: to } }));
+      }
+    });
+  }
+}
+customElements.define('ha-sortable', HaSortable);
+
 /* ---------- silos ---------- */
 
 type Case = { title: string; config: Omit<SiloCardConfig, 'type'>; fill: number };
+
+// The maintainer's bin, for the icon and layout cases.
+const BIN_FOR_ICONS: Omit<SiloCardConfig, 'type'> = {
+  entity: 'sensor.soue1ben2_distance',
+  title: 'Soue 1 Ben 2',
+  unit: 'ft',
+  diameter: 9,
+  rings: 7,
+  ring_height: 32,
+  ring_height_unit: 'in',
+  top_height: 2,
+  bottom: 'cone',
+  bottom_height: 7,
+  capacity: 3,
+  capacity_per: 'ring',
+  weight_unit: 'ton',
+};
 
 const CASES: Case[] = [
   {
@@ -203,6 +272,7 @@ const CASES: Case[] = [
       rings: 7,
       ring_height: 32,
       top_height: 24,
+      top_opening: 18,
       bottom: 'cone',
       bottom_height: 84,
       capacity: 24,
@@ -221,6 +291,7 @@ const CASES: Case[] = [
       ring_height: 2.67,
       top_height: 7.5,
       grain: 'corn',
+      primary: 'remaining',
       texture: 'layers',
       weight_unit: 'ton',
       volume_unit: 'bu',
@@ -260,6 +331,7 @@ const CASES: Case[] = [
       top_height: 2.5,
       grain: 'barley',
       texture: 'shaded',
+      primary: 'weight',
       color: 'brown',
     },
   },
@@ -278,6 +350,7 @@ const CASES: Case[] = [
       bottom_height: 1.6,
       outlet: 0.3,
       density: 650,
+      primary: 'rings',
       rows: ['rings', 'weight', 'remaining'],
     },
   },
@@ -287,10 +360,31 @@ const CASES: Case[] = [
     fill: 0.45,
     config: {
       entity: 'sensor.soue1ben2_fill',
-      rows: ['remaining', 'weight', 'level', 'rings'],
+      primary: 'rings',
+      rows: ['percent', 'remaining', 'weight', 'level'],
       // Entered in inches and short tons; shown in metres and tonnes.
       display_unit: 'm',
       display_weight_unit: 't',
+    },
+  },
+  {
+    title: 'Icons instead of labels',
+    fill: 0.62,
+    config: {
+      ...BIN_FOR_ICONS,
+      labels: 'icons',
+      rows: ['percent', 'weight', 'remaining', 'level', 'rings', 'distance'],
+    },
+  },
+  {
+    title: 'Stacked (layout: stacked) · icons',
+    fill: 0.4,
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.silo_ble_distance',
+      layout: 'stacked',
+      labels: 'icons',
+      primary: 'rings',
     },
   },
   {
