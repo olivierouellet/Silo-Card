@@ -1,12 +1,12 @@
 /** Unit conversions. Everything inside the card is in metres, cubic metres and kilograms. */
 
-export type LengthUnit = 'm' | 'cm' | 'ft' | 'in';
+export type LengthUnit = 'm' | 'cm' | 'mm' | 'ft' | 'in';
 export type VolumeUnit = 'm3' | 'L' | 'ft3' | 'bu';
 /** `ton` is the short ton (2000 lb); `t` the metric tonne. */
 export type WeightUnit = 't' | 'kg' | 'ton' | 'lb';
 export type DensityUnit = 'kg/m3' | 'kg/hL' | 'lb/bu' | 'lb/ft3';
 
-export const LENGTH_UNITS: LengthUnit[] = ['m', 'cm', 'ft', 'in'];
+export const LENGTH_UNITS: LengthUnit[] = ['m', 'cm', 'mm', 'ft', 'in'];
 export const VOLUME_UNITS: VolumeUnit[] = ['m3', 'L', 'ft3', 'bu'];
 export const WEIGHT_UNITS: WeightUnit[] = ['t', 'kg', 'ton', 'lb'];
 export const DENSITY_UNITS: DensityUnit[] = ['kg/m3', 'kg/hL', 'lb/bu', 'lb/ft3'];
@@ -16,7 +16,7 @@ const FOOT = 0.3048; // m
 /** US (Winchester) bushel, 2150.42 cubic inches, the one grain is sold by in North America. */
 const BUSHEL = 0.03523907016688; // m³
 
-export const METRES: Record<LengthUnit, number> = { m: 1, cm: 0.01, ft: FOOT, in: 0.0254 };
+export const METRES: Record<LengthUnit, number> = { m: 1, cm: 0.01, mm: 0.001, ft: FOOT, in: 0.0254 };
 export const CUBIC_METRES: Record<VolumeUnit, number> = { m3: 1, L: 0.001, ft3: FOOT ** 3, bu: BUSHEL };
 export const KILOGRAMS: Record<WeightUnit, number> = { t: 1000, kg: 1, ton: 2000 * POUND, lb: POUND };
 export const KG_PER_M3: Record<DensityUnit, number> = {
@@ -42,7 +42,7 @@ export function sensorMetres(state: string, unit: unknown, fallback: LengthUnit)
 
 /** Converts a length between units, rounded to what makes sense for the target unit (editor unit changes). */
 export function convertLength(value: number, from: LengthUnit, to: LengthUnit): number {
-  const decimals: Record<LengthUnit, number> = { m: 3, cm: 1, ft: 2, in: 1 };
+  const decimals: Record<LengthUnit, number> = { m: 3, cm: 1, mm: 0, ft: 2, in: 1 };
   const factor = 10 ** decimals[to];
   return Math.round(((value * METRES[from]) / METRES[to]) * factor) / factor;
 }

@@ -24,7 +24,18 @@ export const GRAINS = {
   sorghum: 56,
 } as const;
 
-export const ROWS = ['weight', 'remaining', 'volume', 'level', 'rings', 'distance'] as const;
+export const ROWS = ['percent', 'weight', 'remaining', 'volume', 'level', 'rings', 'distance'] as const;
+
+/** The icon of each line, with `labels: icons`. */
+export const ROW_ICONS: Record<(typeof ROWS)[number], string> = {
+  percent: 'mdi:percent-circle-outline',
+  weight: 'mdi:weight',
+  remaining: 'mdi:truck-delivery',
+  volume: 'mdi:cube-outline',
+  level: 'mdi:arrow-expand-vertical',
+  rings: 'mdi:ladder',
+  distance: 'mdi:signal-distance-variant',
+};
 
 export const TEXTURES = ['stipple', 'layers', 'shaded', 'hatching'] as const;
 
@@ -38,6 +49,7 @@ export const DEFAULTS = {
   rings: 1,
   top: 'cone',
   top_height: 0,
+  top_opening: 0,
   bottom: 'flat',
   bottom_height: 0,
   outlet: 0,
@@ -47,7 +59,10 @@ export const DEFAULTS = {
   volume_unit: 'm3',
   include_roof: false,
   low_level: 20,
+  primary: 'percent',
   rows: ['weight', 'remaining', 'level', 'rings'],
+  labels: 'text',
+  layout: 'auto',
   texture: 'stipple',
   show_sensor: true,
   language: 'auto',

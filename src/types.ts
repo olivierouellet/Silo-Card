@@ -28,7 +28,7 @@ export type Measure = 'distance' | 'level';
 export type Texture = 'stipple' | 'layers' | 'shaded' | 'hatching';
 
 /** The lines beside the drawing, in the order given. */
-export type Row = 'weight' | 'remaining' | 'volume' | 'level' | 'rings' | 'distance';
+export type Row = 'percent' | 'weight' | 'remaining' | 'volume' | 'level' | 'rings' | 'distance';
 
 export interface SiloCardConfig {
   type: string;
@@ -37,14 +37,23 @@ export interface SiloCardConfig {
   /** Height of the sensor above the silo's lowest point; the top of the silo when not set. */
   sensor_height?: number;
 
-  /** Unit of every length below. */
+  /** Unit of every length below that has no unit of its own (`diameter_unit`, `ring_height_unit`…). */
   unit?: LengthUnit;
+  diameter_unit?: LengthUnit;
+  ring_height_unit?: LengthUnit;
+  top_height_unit?: LengthUnit;
+  top_opening_unit?: LengthUnit;
+  bottom_height_unit?: LengthUnit;
+  outlet_unit?: LengthUnit;
+  sensor_height_unit?: LengthUnit;
   shape?: Shape;
   diameter?: number;
   rings?: number;
   ring_height?: number;
   top?: TopType;
   top_height?: number;
+  /** Diameter of the flat lid at the top of a cone roof; 0 for a pointed roof. */
+  top_opening?: number;
   bottom?: BottomType;
   bottom_height?: number;
   outlet?: number;
@@ -69,7 +78,13 @@ export interface SiloCardConfig {
   title?: string;
   icon?: string;
   color?: string;
+  /** The big value at the top of the stats. */
+  primary?: Row;
   rows?: readonly Row[];
+  /** The lines' names, or an icon for each (the name then shows on hover). */
+  labels?: 'text' | 'icons';
+  /** The silo beside the numbers, above them, or above them only when the card is narrow. */
+  layout?: 'auto' | 'side' | 'stacked';
   texture?: Texture;
   show_sensor?: boolean;
   language?: Language;

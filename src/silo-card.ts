@@ -3,7 +3,16 @@ import { customElement, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
 import type { HomeAssistant, Row, SiloCardConfig } from './types';
-import { CARD_TAG, CARD_VERSION, DEFAULTS, DEFAULT_COLOR, DEFAULT_ICON, EDITOR_TAG, ResolvedConfig } from './const';
+import {
+  CARD_TAG,
+  CARD_VERSION,
+  DEFAULTS,
+  DEFAULT_COLOR,
+  DEFAULT_ICON,
+  EDITOR_TAG,
+  ROW_ICONS,
+  ResolvedConfig,
+} from './const';
 import { drawSilo } from './drawing';
 import { Reading, Silo, readSilo, siloFromConfig } from './silo';
 import { CUBIC_METRES, KILOGRAMS, LengthUnit, METRES, VolumeUnit, WeightUnit, sensorMetres } from './units';
@@ -34,7 +43,7 @@ w.customCards.push({
 const NBSP = '\u00a0';
 
 /** Decimals shown for each unit. */
-const LENGTH_DECIMALS: Record<LengthUnit, number> = { m: 2, cm: 0, ft: 1, in: 0 };
+const LENGTH_DECIMALS: Record<LengthUnit, number> = { m: 2, cm: 0, mm: 0, ft: 1, in: 0 };
 const WEIGHT_DECIMALS: Record<WeightUnit, number> = { t: 1, kg: 0, ton: 1, lb: 0 };
 const VOLUME_DECIMALS: Record<VolumeUnit, number> = { m3: 1, L: 0, ft3: 0, bu: 0 };
 
@@ -95,8 +104,12 @@ export class SiloCard extends LitElement {
     return 4;
   }
 
+  /**
+   * Sections view: as tall as its content by default ("Auto height"). Given a fixed height in the Layout tab,
+   * the drawing shrinks to fit it; under 3 rows there is no room for the silo and its numbers.
+   */
   public getGridOptions() {
-    return { columns: 6, min_columns: 4, rows: 'auto' as const };
+    return { columns: 6, min_columns: 4, rows: 'auto' as const, min_rows: 3 };
   }
 
   private _t(key: string, vars?: Record<string, string>): string {
@@ -179,7 +192,7 @@ export class SiloCard extends LitElement {
     const grain = cfg.grain ? this._t(`grains.${cfg.grain}`) : undefined;
 
     return html`
-      <ha-card style=${styleMap({ '--silo-grain': cssColor(cfg.color) })}>
+      <ha-card class="layout-${cfg.layout}" style=${styleMap({ '--silo-grain': cssColor(cfg.color) })}>
         <div class="header">
           <ha-icon icon=${cfg.icon || DEFAULT_ICON}></ha-icon>
           <div class="titles">
@@ -235,6 +248,7 @@ export class SiloCard extends LitElement {
   private _renderStats(silo: Silo, r: Reading, low: boolean): TemplateResult {
     const cfg = this._view;
     const values: Record<Row, string | undefined> = {
+      percent: this._percent(r.percent),
       weight: r.weight === undefined ? undefined : this._weight(r.weight),
       remaining: r.remaining === undefined ? undefined : this._weight(r.remaining),
       volume: this._volume(r.volume),
@@ -243,26 +257,69 @@ export class SiloCard extends LitElement {
       rings: silo.geometry.rings > 1 || r.position.kind !== 'rings' ? this._position(silo, r) : undefined,
       distance: this._length(r.distance),
     };
+    const main = this._main(silo, r);
     const rows = cfg.rows
       .filter((row) => values[row] !== undefined)
-      .map((row) => [this._t(`card.${row}`), values[row]!] as const);
+      .map((row) => [row, this._t(`card.${row}`), values[row]!] as const);
+    const icons = cfg.labels === 'icons';
 
     return html`
-      <div class="percent ${low ? 'low' : ''}">
-        <span class="value">${this._percent(r.percent)}</span>
-        <span class="unit">${this._t('card.full')}</span>
+      <div class="main ${low ? 'low' : ''}">
+        <span class="value">${main[0]}</span>
+        <span class="unit">${main[1]}</span>
         ${low ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
       </div>
       <dl>
         ${rows.map(
-          ([label, value]) =>
-            html`<div class="row">
-              <dt>${label}</dt>
+          ([row, label, value]) =>
+            html`<div class="row ${icons ? 'with-icon' : ''}">
+              ${
+                icons
+                  ? html`<dt class="icon" title=${label} aria-label=${label}>
+                      <ha-icon icon=${ROW_ICONS[row]}></ha-icon>
+                    </dt>`
+                  : html`<dt>${label}</dt>`
+              }
               <dd>${value}</dd>
             </div>`,
         )}
       </dl>
     `;
+  }
+
+  /**
+   * The big value and its caption: the `primary` option, or the fill when that value isn't there (no weight
+   * without a density, no rings to count in a plain wall).
+   */
+  private _main(silo: Silo, r: Reading): [string, string] {
+    const p = r.position;
+    switch (this._view.primary) {
+      case 'weight':
+        if (r.weight !== undefined) return [this._weight(r.weight), this._t('card.main_weight')];
+        break;
+      case 'remaining':
+        if (r.remaining !== undefined) return [this._weight(r.remaining), this._t('card.main_remaining')];
+        break;
+      case 'volume':
+        return [this._volume(r.volume), this._t('card.main_volume')];
+      case 'level':
+        return [this._length(r.level), this._t('card.main_level')];
+      case 'distance':
+        return [this._length(r.distance), this._t('card.main_distance')];
+      case 'rings': {
+        if (p.kind === 'bottom' || p.kind === 'top') {
+          const fill = r.parts.find((f) => f.part.kind === p.kind)?.fraction ?? 0;
+          return [this._percent(fill * 100), this._t(`card.main_${p.kind}`)];
+        }
+        const total = silo.geometry.rings;
+        if (total > 1) {
+          const rings = p.kind === 'rings' ? p.rings : 0;
+          return [this._number(rings, 1), this._t('card.main_rings', { total: String(total) })];
+        }
+        break;
+      }
+    }
+    return [this._percent(r.percent), this._t('card.full')];
   }
 
   /** "4.3 of 7" on the rings, or the share of the hopper or roof that is full. */
@@ -291,17 +348,26 @@ export class SiloCard extends LitElement {
   }
 
   static styles = css`
+    /* As tall as the sections slot when it has a fixed height (auto otherwise), so ha-card can fill it. */
     :host {
       display: block;
+      height: 100%;
       --silo-wall: var(--secondary-text-color, #727272);
       --silo-low: var(--warning-color, #ffa600);
     }
+    /* A column that fills the card: in a fixed-height slot the body gets what the header leaves. */
     ha-card {
       padding: 12px 16px 16px;
       height: 100%;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      /* Lets the layout follow the card's own width, not the screen's. */
+      container-type: inline-size;
     }
     .header {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -326,8 +392,10 @@ export class SiloCard extends LitElement {
       color: var(--secondary-text-color);
     }
     .body {
+      flex: 1 1 auto;
+      min-height: 0;
       display: flex;
-      align-items: flex-end;
+      align-items: stretch;
       gap: 16px;
       border-radius: 8px;
       outline: none;
@@ -341,11 +409,16 @@ export class SiloCard extends LitElement {
     .drawing {
       flex-shrink: 0;
       max-width: 40%;
+      min-height: 0;
       display: flex;
+      align-items: flex-end;
     }
+    /* Its natural size (168 px tall), scaled down to the space there is, keeping its proportions. */
     svg.silo {
-      max-width: 100%;
+      width: auto;
       height: auto;
+      max-width: 100%;
+      max-height: 100%;
       overflow: visible;
     }
     .wall {
@@ -410,21 +483,23 @@ export class SiloCard extends LitElement {
     .stats {
       flex: 1;
       min-width: 0;
+      min-height: 0;
       align-self: center;
+      overflow: hidden;
     }
-    .percent {
+    .main {
       display: flex;
       align-items: baseline;
       flex-wrap: wrap;
       gap: 4px 6px;
       margin-bottom: 8px;
     }
-    .percent .value {
+    .main .value {
       font-size: 2em;
       font-weight: 500;
       line-height: 1.1;
     }
-    .percent .unit {
+    .main .unit {
       color: var(--secondary-text-color);
     }
     .badge {
@@ -452,6 +527,20 @@ export class SiloCard extends LitElement {
       gap: 8px;
       font-size: 0.9em;
     }
+    /* With icons, each value right after its icon, left-aligned. */
+    .row.with-icon {
+      justify-content: flex-start;
+      gap: 10px;
+    }
+    .row.with-icon dd {
+      text-align: left;
+    }
+    dt.icon {
+      display: flex;
+      align-items: center;
+      overflow: visible;
+      --mdc-icon-size: 18px;
+    }
     dt {
       color: var(--secondary-text-color);
       min-width: 0;
@@ -468,6 +557,39 @@ export class SiloCard extends LitElement {
     .message {
       padding: 8px 0;
       color: var(--secondary-text-color);
+    }
+
+    /*
+     * The silo above the numbers: always with layout: stacked, and with layout: auto when the card is too
+     * narrow for both side by side (in em, so larger text stacks sooner).
+     */
+    ha-card.layout-stacked .body {
+      flex-direction: column;
+      gap: 8px;
+    }
+    ha-card.layout-stacked .drawing {
+      max-width: none;
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+    ha-card.layout-stacked .stats {
+      flex: 0 0 auto;
+      align-self: stretch;
+    }
+    @container (max-width: 14em) {
+      ha-card.layout-auto .body {
+        flex-direction: column;
+        gap: 8px;
+      }
+      ha-card.layout-auto .drawing {
+        max-width: none;
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      ha-card.layout-auto .stats {
+        flex: 0 0 auto;
+        align-self: stretch;
+      }
     }
   `;
 }

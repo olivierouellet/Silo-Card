@@ -14,6 +14,18 @@ import {
 } from './geometry';
 import { KG_PER_M3, KILOGRAMS, METRES } from './units';
 
+/** The config keys holding a length; each may have a unit of its own, `<key>_unit`. */
+export const LENGTH_KEYS = [
+  'diameter',
+  'ring_height',
+  'top_height',
+  'top_opening',
+  'bottom_height',
+  'outlet',
+  'sensor_height',
+] as const;
+export type LengthKey = (typeof LENGTH_KEYS)[number];
+
 export interface Silo {
   geometry: SiloGeometry;
   parts: Part[];
@@ -48,19 +60,24 @@ export interface Reading {
 
 /** The silo described by the config, or null while a dimension it needs is missing. */
 export function siloFromConfig(cfg: ResolvedConfig): Silo | null {
-  const m = METRES[cfg.unit] ?? 1;
-  const len = (value: number | undefined) => (Number.isFinite(value) && value! > 0 ? value! * m : 0);
+  // Each length in its own unit, or in the silo's default unit.
+  const len = (key: LengthKey) => {
+    const value = cfg[key];
+    const unit = cfg[`${key}_unit`] ?? cfg.unit;
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value * (METRES[unit] ?? 1) : 0;
+  };
   const rings = Math.max(1, Math.round(cfg.rings));
   const geometry: SiloGeometry = {
     shape: cfg.shape,
-    diameter: len(cfg.diameter),
+    diameter: len('diameter'),
     rings,
-    ringHeight: len(cfg.ring_height),
+    ringHeight: len('ring_height'),
     top: cfg.top,
-    topHeight: len(cfg.top_height),
+    topHeight: len('top_height'),
+    topOpening: len('top_opening'),
     bottom: cfg.bottom,
-    bottomHeight: len(cfg.bottom_height),
-    outlet: len(cfg.outlet),
+    bottomHeight: len('bottom_height'),
+    outlet: len('outlet'),
   };
   if (!geometry.diameter || !geometry.ringHeight) return null;
   const parts = buildParts(geometry);
@@ -80,7 +97,7 @@ export function siloFromConfig(cfg: ResolvedConfig): Silo | null {
     geometry,
     parts,
     height,
-    sensorHeight: len(cfg.sensor_height) || height,
+    sensorHeight: len('sensor_height') || height,
     capacity,
     density,
   };

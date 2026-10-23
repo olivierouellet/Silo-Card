@@ -17,6 +17,8 @@ export interface SiloGeometry {
   ringHeight: number;
   top: TopType;
   topHeight: number;
+  /** Diameter of a cone roof at its top, the flat lid (0 for a pointed roof). */
+  topOpening: number;
   bottom: BottomType;
   bottomHeight: number;
   /** Diameter of a cone bottom at its lowest point (0 for a pointed hopper). */
@@ -60,7 +62,8 @@ export function buildParts(g: SiloGeometry): Part[] {
   }
   if (g.top !== 'flat' && g.topHeight > 0) {
     const profile = g.top === 'dome' ? 'dome' : 'frustum';
-    parts.push({ kind: 'top', index: 0, profile, z0: z, z1: z + g.topHeight, w0: g.diameter, w1: 0 });
+    const opening = g.top === 'cone' ? Math.min(Math.max(g.topOpening, 0), g.diameter) : 0;
+    parts.push({ kind: 'top', index: 0, profile, z0: z, z1: z + g.topHeight, w0: g.diameter, w1: opening });
   }
   return parts;
 }
