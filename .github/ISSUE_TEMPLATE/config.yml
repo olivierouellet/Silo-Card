@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability · Vulnérabilité de sécurité
+    url: https://github.com/olivierouellet/Silo-Card/security/advisories/new
+    about: Don't open a public issue; report it privately here (see SECURITY.md). · N’ouvrez pas d’issue publique; signalez-la ici en privé (voir SECURITY.md).
+  - name: Problem with the integration · Problème avec l’intégration
+    url: https://github.com/olivierouellet/Silo/issues
+    about: The Silo integration has its own repository. · L’intégration Silo a son propre dépôt.

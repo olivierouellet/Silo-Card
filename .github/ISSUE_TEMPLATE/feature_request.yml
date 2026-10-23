@@ -1,0 +1,30 @@
+name: Feature request · Suggestion
+description: Something the card should do. · Quelque chose que la carte devrait faire.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Write in English or French. · Écrivez en anglais ou en français.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem · Le besoin
+      description: The situation, not the solution. · La situation, pas la solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind · Votre idée
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to have a go at implementing this. · Je pourrais essayer de la réaliser.
+          required: false

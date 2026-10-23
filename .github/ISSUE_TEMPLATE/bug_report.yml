@@ -1,0 +1,67 @@
+name: Bug report · Bogue
+description: Something doesn't work as expected. · Quelque chose ne fonctionne pas comme prévu.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or French. · Écrivez en anglais ou en français.
+
+        If the bug has a security side, close this and follow
+        [SECURITY.md](https://github.com/olivierouellet/Silo-Card/blob/main/SECURITY.md) instead.
+        · Si le problème touche la sécurité, fermez ce formulaire et suivez plutôt SECURITY.md.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened · Ce qui s’est passé
+      description: What you did, what you saw, and what you expected. · Ce que vous avez fait, ce que vous avez vu, et ce que vous attendiez.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sensor
+    attributes:
+      label: Sensor · Capteur
+      description: >
+        What measures the level (for example an ESPHome ultrasonic sensor), and the state and unit Home Assistant shows for it. ·
+        Ce qui mesure le niveau (par exemple un capteur à ultrasons ESPHome), et l’état et l’unité que Home Assistant affiche.
+      placeholder: ESPHome + HRXL-MaxSonar, sensor.silo_distance = 3.42 m
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Card configuration (YAML) · Configuration de la carte (YAML)
+      render: yaml
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Silo Card, Home Assistant and the browser or app. · Silo Card, Home Assistant et le navigateur ou l’application.
+      placeholder: Silo Card 0.1.0, Home Assistant 2026.10.1, Safari 26 / Companion iOS
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Browser console · Console du navigateur
+      description: >
+        Lines mentioning "Silo" in the browser console. ·
+        Les lignes qui mentionnent « Silo » dans la console du navigateur.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting · Avant d’envoyer
+      options:
+        - label: This is not a security issue. · Ce n’est pas un problème de sécurité.
+          required: true
