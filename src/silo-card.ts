@@ -490,10 +490,17 @@ export class SiloCard extends LitElement {
           distance: DASH,
           updated: DASH,
         };
-    const stateName = missing && this._t(`card.state_${missing.state === 'unavailable' ? 'unavailable' : 'unknown'}`);
-    const main = r ? this._main(silo, r) : ['', stateName!];
-    // Without a main value (`primary: none`), the line stays for the state and the badges.
-    const showValue = !r || cfg.primary !== 'none';
+    // The state takes the main value's place only when there is no value at all, not even the last one.
+    const stateName =
+      !r &&
+      missing &&
+      cfg.show_unavailable &&
+      this._t(`card.state_${missing.state === 'unavailable' ? 'unavailable' : 'unknown'}`);
+    const main = r ? this._main(silo, r) : ['', stateName || ''];
+    const lowBadge = low && cfg.show_low_badge;
+    // Without a main value (`primary: none`), the line stays for the state and the badge; without them, the
+    // empty line keeps its height, so the rows stay where they are.
+    const showValue = cfg.primary !== 'none' || !!stateName;
     const rows = cfg.rows
       .filter((row) => values[row] !== undefined)
       .map((row) => [row, this._t(`card.${row}`), values[row]!] as const);
@@ -504,11 +511,11 @@ export class SiloCard extends LitElement {
 
     return html`
       ${
-        showValue || low || missing
+        showValue || lowBadge
           ? html`<div class="main ${low ? 'low' : ''} ${r ? '' : 'no-value'}" title=${missing?.message ?? nothing}>
               ${r && showValue ? html`<span class="value">${main[0]}</span>` : nothing}
               ${showValue && main[1] ? html`<span class="unit">${main[1]}</span>` : nothing}
-              ${low ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
+              ${lowBadge ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
             </div>`
           : nothing
       }

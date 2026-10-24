@@ -63,6 +63,7 @@ export const DEFAULTS = {
   volume_unit: 'm3',
   include_roof: false,
   low_level: 20,
+  show_low_badge: true,
   primary: 'percent',
   rows: ['weight', 'remaining', 'level', 'rings'],
   labels: 'text',
@@ -71,6 +72,7 @@ export const DEFAULTS = {
   texture: 'stipple',
   show_sensor: true,
   show_last_reading: true,
+  show_unavailable: true,
   language: 'auto',
 } as const satisfies Partial<SiloCardConfig>;
 

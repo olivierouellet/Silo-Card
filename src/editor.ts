@@ -364,8 +364,10 @@ export class SiloCardEditor extends LitElement {
             name: 'low_level',
             selector: { number: { min: 0, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } },
           },
+          { name: 'show_low_badge', selector: { boolean: {} } },
           ...(measure === 'distance' ? [{ name: 'show_sensor', selector: { boolean: {} } }] : []),
           { name: 'show_last_reading', selector: { boolean: {} } },
+          { name: 'show_unavailable', selector: { boolean: {} } },
           { name: 'stale_after', selector: { duration: { enable_day: true } } },
           this._select('language', ['auto', 'en', 'fr'], 'lang_'),
         ],
@@ -389,6 +391,8 @@ export class SiloCardEditor extends LitElement {
       case 'include_roof':
       case 'low_level':
       case 'show_last_reading':
+      case 'show_low_badge':
+      case 'show_unavailable':
       case 'stale_after':
       case 'title':
       case 'primary':

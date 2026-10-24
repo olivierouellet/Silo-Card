@@ -79,6 +79,8 @@ export interface SiloCardConfig {
   display_volume_unit?: VolumeUnit;
   /** Percentage under which the grain is drawn in the warning colour; 0 turns it off. */
   low_level?: number;
+  /** The *Low* badge beside the main value, under `low_level`. */
+  show_low_badge?: boolean;
 
   title?: string;
   icon?: string;
@@ -96,6 +98,8 @@ export interface SiloCardConfig {
   show_sensor?: boolean;
   /** While the sensor has no reading, its last one from the recorder, marked as stale. */
   show_last_reading?: boolean;
+  /** The sensor's state (unavailable, unknown) in place of the main value while it has no reading. */
+  show_unavailable?: boolean;
   /** A reading older than this counts as none: the sensor is shown as unavailable. */
   stale_after?: Duration;
   language?: Language;
