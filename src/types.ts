@@ -29,8 +29,11 @@ export type Measure = 'distance' | 'level';
 /** What lies over the grain colour. */
 export type Texture = 'stipple' | 'layers' | 'shaded' | 'hatching';
 
-/** The lines beside the drawing, in the order given. */
-export type Row = 'percent' | 'weight' | 'remaining' | 'volume' | 'level' | 'rings' | 'distance';
+/** The lines beside the drawing, in the order given; `updated` is when the sensor last read. */
+export type Row = 'percent' | 'weight' | 'remaining' | 'volume' | 'level' | 'rings' | 'distance' | 'updated';
+
+/** The lines that can be the big value at the top. */
+export type MainValue = Exclude<Row, 'updated'>;
 
 export interface SiloCardConfig {
   type: string;
@@ -81,7 +84,7 @@ export interface SiloCardConfig {
   icon?: string;
   color?: string;
   /** The big value at the top of the stats. */
-  primary?: Row | 'none';
+  primary?: MainValue | 'none';
   rows?: readonly Row[];
   /** The lines' names, or an icon for each (the name then shows on hover). */
   labels?: 'text' | 'icons';

@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
 import type { HomeAssistant, Row, SiloCardConfig } from './types';
-import { DEFAULTS, DEFAULT_ICON, EDITOR_TAG, GRAINS, ROWS, TEXTURES } from './const';
+import { DEFAULTS, DEFAULT_ICON, EDITOR_TAG, GRAINS, MAIN_VALUES, ROWS, TEXTURES } from './const';
 import { INTEGRATION_DOMAIN, INTEGRATION_KEYS, integrationSilo } from './integration';
 import { DENSITY_UNITS, KG_PER_M3, LENGTH_UNITS, LengthUnit, VOLUME_UNITS, WEIGHT_UNITS, convertLength } from './units';
 import { Lang, intlLocale, localize, resolveLanguage } from './localize/localize';
@@ -336,7 +336,7 @@ export class SiloCardEditor extends LitElement {
               select: {
                 mode: 'dropdown',
                 options: [
-                  ...ROWS.map((row) => ({ value: row, label: this._t(`editor.row_${row}`) })),
+                  ...MAIN_VALUES.map((row) => ({ value: row, label: this._t(`editor.row_${row}`) })),
                   { value: 'none', label: this._t('editor.primary_none') },
                 ],
               },

@@ -24,7 +24,10 @@ export const GRAINS = {
   sorghum: 56,
 } as const;
 
-export const ROWS = ['percent', 'weight', 'remaining', 'volume', 'level', 'rings', 'distance'] as const;
+export const ROWS = ['percent', 'weight', 'remaining', 'volume', 'level', 'rings', 'distance', 'updated'] as const;
+
+/** The rows that can be the main value: all but `updated`. */
+export const MAIN_VALUES = ROWS.filter((row) => row !== 'updated');
 
 /** The icon of each line, with `labels: icons`. */
 export const ROW_ICONS: Record<(typeof ROWS)[number], string> = {
@@ -35,6 +38,7 @@ export const ROW_ICONS: Record<(typeof ROWS)[number], string> = {
   level: 'mdi:arrow-expand-vertical',
   rings: 'mdi:ladder',
   distance: 'mdi:arrow-expand-down',
+  updated: 'mdi:timer-sand',
 };
 
 export const TEXTURES = ['stipple', 'layers', 'shaded', 'hatching'] as const;

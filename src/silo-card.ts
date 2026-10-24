@@ -60,6 +60,13 @@ interface LastReading {
   time: number;
 }
 
+/**
+ * A card this many columns wide or less, in a sections view, is compact: icons for labels and shorter
+ * values. Outside a sections view, a card this many pixels wide or less (4 columns are at most about 160).
+ */
+const COMPACT_COLUMNS = 4;
+const COMPACT_WIDTH = 180;
+
 /** setTimeout's longest delay, about 24 days. */
 const MAX_TIMEOUT = 2 ** 31 - 1;
 
@@ -71,6 +78,14 @@ interface Missing {
   state: string;
   /** The sensor has a value, but older than `stale_after`. */
   tooOld?: boolean;
+}
+
+/** How long ago, in minutes up to an hour, hours up to two days, then days. */
+function since(time: number): [number, 'minute' | 'hour' | 'day'] {
+  const minutes = Math.max(1, Math.round((Date.now() - time) / 60_000));
+  if (minutes < 60) return [minutes, 'minute'];
+  if (minutes < 48 * 60) return [Math.round(minutes / 60), 'hour'];
+  return [Math.round(minutes / 1440), 'day'];
 }
 
 /** Decimals shown for each unit. */
@@ -135,6 +150,11 @@ export class SiloCard extends LitElement {
   /** When the current reading becomes too old (`stale_after`), set by `render`; a timer redraws the card then. */
   private _staleAt?: number;
   private _staleTimer?: ReturnType<typeof setTimeout>;
+  /** The `updated` row shows how long ago, set by `render`; the timer redraws the card every minute then. */
+  private _ticking = false;
+  /** The card is narrow (`COMPACT_COLUMNS`): icons for labels, and no captions it can do without. */
+  @state() private _compact = false;
+  private _resize?: ResizeObserver;
 
   public setConfig(config: SiloCardConfig): void {
     if (!config) throw new Error('Invalid configuration');
@@ -150,7 +170,7 @@ export class SiloCard extends LitElement {
    * the drawing shrinks to fit it; under 3 rows there is no room for the silo and its numbers.
    */
   public getGridOptions() {
-    return { columns: 6, min_columns: 4, rows: 'auto' as const, min_rows: 3 };
+    return { columns: 6, min_columns: 3, rows: 'auto' as const, min_rows: 3 };
   }
 
   private _t(key: string, vars?: Record<string, string>): string {
@@ -199,12 +219,13 @@ export class SiloCard extends LitElement {
   }
 
   /**
-   * The sensor's value in metres, or a message saying why there is none, with `missing` when the sensor is
-   * merely without a reading (unknown, unavailable, or older than `stale_after`, then given as `old`) rather
-   * than set up wrong.
+   * The sensor's value in metres and when it last updated (ms), or a message saying why there is none, with
+   * `missing` when the sensor is merely without a reading (unknown, unavailable, or older than `stale_after`,
+   * then given as `old`) rather than set up wrong.
    */
   private _measure(integration: boolean): {
     value?: number;
+    time?: number;
     message?: string;
     missing?: Missing;
     old?: LastReading;
@@ -239,10 +260,11 @@ export class SiloCard extends LitElement {
   private _fresh(value: number, measure: Measure, sensor: HassEntity): ReturnType<SiloCard['_measure']> {
     const limit = durationMs(this._view.stale_after);
     const time = Date.parse(sensor.last_updated);
-    if (!limit || !Number.isFinite(time)) return { value };
+    if (!Number.isFinite(time)) return { value };
+    if (!limit) return { value, time };
     if (Date.now() - time <= limit) {
       this._staleAt = time + limit;
-      return { value };
+      return { value, time };
     }
     const message = this._t('card.too_old', { entity: sensor.entity_id, time: this._ago(time) });
     return {
@@ -268,14 +290,32 @@ export class SiloCard extends LitElement {
   protected updated(): void {
     if (this._lookup) this._fetchLast(this._lookup.sensor, this._lookup.since);
     clearTimeout(this._staleTimer);
-    if (this._staleAt !== undefined) {
-      const delay = Math.min(Math.max(this._staleAt - Date.now(), 0) + 1000, MAX_TIMEOUT);
+    if (this._staleAt !== undefined || this._ticking) {
+      const stale = this._staleAt === undefined ? MAX_TIMEOUT : Math.max(this._staleAt - Date.now(), 0) + 1000;
+      const delay = Math.min(stale, this._ticking ? 60_000 : MAX_TIMEOUT, MAX_TIMEOUT);
       this._staleTimer = setTimeout(() => this.requestUpdate(), delay);
     }
   }
 
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this._resize ??= new ResizeObserver(() => this._measureCompact());
+    this._resize.observe(this);
+  }
+
+  /**
+   * Compact by its columns in a sections view, which sets `--column-size` on the card's wrapper (changing
+   * them resizes the card), else by its width.
+   */
+  private _measureCompact(): void {
+    const columns = Number.parseFloat(getComputedStyle(this).getPropertyValue('--column-size'));
+    const width = this.clientWidth;
+    this._compact = Number.isFinite(columns) ? columns <= COMPACT_COLUMNS : width > 0 && width <= COMPACT_WIDTH;
+  }
+
   public disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._resize?.disconnect();
     clearTimeout(this._staleTimer);
   }
 
@@ -320,8 +360,10 @@ export class SiloCard extends LitElement {
     const cfg = (this._view = { ...this._config, ...fromIntegration } as ResolvedConfig);
     const silo = siloFromConfig(cfg);
     this._lookup = this._staleAt = undefined;
-    const { value, message, missing, old } = this._measure(!!fromIntegration);
+    const { value, time, message, missing, old } = this._measure(!!fromIntegration);
     const last = silo && missing && cfg.show_last_reading ? (old ?? this._lastReading(missing)) : undefined;
+    const updated = value !== undefined ? time : last?.time;
+    this._ticking = updated !== undefined && cfg.rows.includes('updated');
     // The integration gives the grain height, whatever its own sensor measures; its source's last reading
     // in the recorder is what that sensor measures.
     const measure = value !== undefined ? (fromIntegration ? 'level' : cfg.measure) : (last?.measure ?? cfg.measure);
@@ -362,7 +404,7 @@ export class SiloCard extends LitElement {
                     ${
                       reading || missing
                         ? html`${titleInStats ? this._renderName(grain) : nothing}
-                          ${this._renderStats(silo, reading, low, missing, last?.time)}`
+                          ${this._renderStats(silo, reading, low, status, missing, updated)}`
                         : html`<div class="message">${message}</div>`
                     }
                   </div>
@@ -409,10 +451,18 @@ export class SiloCard extends LitElement {
 
   /**
    * The main value and the rows. Without a reading, the same lines with dashes for values and the sensor's
-   * state as the caption, so the card keeps its height. With the last reading instead (`since` when it
-   * stopped), its values greyed and a badge with the state and how long ago. The message says why in a tooltip.
+   * state as the caption, so the card keeps its height. With the last reading instead, its values greyed.
+   * The `updated` row says how long ago the reading was (`updated`, ms), in the sensor light's colour once it
+   * isn't current. The message says why in a tooltip.
    */
-  private _renderStats(silo: Silo, r: Reading | null, low: boolean, missing?: Missing, since?: number): TemplateResult {
+  private _renderStats(
+    silo: Silo,
+    r: Reading | null,
+    low: boolean,
+    status: SensorStatus,
+    missing?: Missing,
+    updated?: number,
+  ): TemplateResult {
     const cfg = this._view;
     const weighed = silo.density !== undefined;
     const values: Record<Row, string | undefined> = r
@@ -425,6 +475,7 @@ export class SiloCard extends LitElement {
           // A wall without rings has nothing to count, unless the grain is in the hopper or roof.
           rings: silo.geometry.rings > 1 || r.position.kind !== 'rings' ? this._position(silo, r) : undefined,
           distance: this._length(r.distance),
+          updated: updated === undefined ? DASH : this._compact ? this._age(updated) : this._ago(updated),
         }
       : {
           percent: DASH,
@@ -434,6 +485,7 @@ export class SiloCard extends LitElement {
           level: DASH,
           rings: silo.geometry.rings > 1 ? DASH : undefined,
           distance: DASH,
+          updated: DASH,
         };
     const stateName = missing && this._t(`card.state_${missing.state === 'unavailable' ? 'unavailable' : 'unknown'}`);
     const main = r ? this._main(silo, r) : ['', stateName!];
@@ -442,34 +494,29 @@ export class SiloCard extends LitElement {
     const rows = cfg.rows
       .filter((row) => values[row] !== undefined)
       .map((row) => [row, this._t(`card.${row}`), values[row]!] as const);
-    const icons = cfg.labels === 'icons';
+    const icons = cfg.labels === 'icons' || this._compact;
+    // The sand runs out once the reading is past stale_after, or gone.
+    const icon = (row: Row) =>
+      row === 'updated' && (status === 'old' || status === 'none') ? 'mdi:timer-sand-complete' : ROW_ICONS[row];
 
     return html`
       ${
         showValue || low || missing
           ? html`<div class="main ${low ? 'low' : ''} ${r ? '' : 'no-value'}" title=${missing?.message ?? nothing}>
               ${r && showValue ? html`<span class="value">${main[0]}</span>` : nothing}
-              ${showValue ? html`<span class="unit">${main[1]}</span>` : nothing}
+              ${showValue && main[1] ? html`<span class="unit">${main[1]}</span>` : nothing}
               ${low ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
-              ${
-                r && missing
-                  ? html`<span class="badge stale ${missing.tooOld ? 'old' : ''}">
-                      <ha-icon icon=${missing.tooOld ? 'mdi:alert-outline' : 'mdi:clock-alert-outline'}></ha-icon
-                      >${stateName}${since ? ` · ${this._ago(since)}` : ''}
-                    </span>`
-                  : nothing
-              }
             </div>`
           : nothing
       }
       <dl class=${missing ? 'stale' : ''}>
         ${rows.map(
           ([row, label, value]) =>
-            html`<div class="row ${icons ? 'with-icon' : ''}">
+            html`<div class="row ${icons ? 'with-icon' : ''} ${row === 'updated' ? `updated ${status}` : ''}">
               ${
                 icons
                   ? html`<dt class="icon" title=${label} aria-label=${label}>
-                      <ha-icon icon=${ROW_ICONS[row]}></ha-icon>
+                      <ha-icon icon=${icon(row)}></ha-icon>
                     </dt>`
                   : html`<dt>${label}</dt>`
               }
@@ -502,37 +549,41 @@ export class SiloCard extends LitElement {
       case 'rings': {
         if (p.kind === 'bottom' || p.kind === 'top') {
           const fill = r.parts.find((f) => f.part.kind === p.kind)?.fraction ?? 0;
-          return [this._percent(fill * 100), this._t(`card.main_${p.kind}`)];
+          return [this._percent(fill * 100), ''];
         }
         const total = silo.geometry.rings;
         if (total > 1) {
           const rings = p.kind === 'rings' ? p.rings : 0;
-          return [this._number(rings, 1), this._t('card.main_rings', { total: String(total) })];
+          const caption = this._compact ? '' : this._t('card.main_rings', { total: String(total) });
+          return [this._number(rings, 1), caption];
         }
         break;
       }
     }
-    return [this._percent(r.percent), this._t('card.full')];
+    return [this._percent(r.percent), this._compact ? '' : this._t('card.full')];
   }
 
   /** "3 h ago", in the card's language. */
   private _ago(time: number): string {
-    const minutes = Math.max(1, Math.round((Date.now() - time) / 60_000));
-    const format = new Intl.RelativeTimeFormat(intlLocale(this._lang), { style: 'short' });
-    if (minutes < 60) return format.format(-minutes, 'minute');
-    if (minutes < 48 * 60) return format.format(-Math.round(minutes / 60), 'hour');
-    return format.format(-Math.round(minutes / 1440), 'day');
+    const [amount, unit] = since(time);
+    return new Intl.RelativeTimeFormat(intlLocale(this._lang), { style: 'short' }).format(-amount, unit);
   }
 
-  /** "4.3 of 7" on the rings, or the share of the hopper or roof that is full. */
+  /** "3 h", without the "ago", for a compact card. */
+  private _age(time: number): string {
+    const [amount, unit] = since(time);
+    return new Intl.NumberFormat(intlLocale(this._lang), { style: 'unit', unit, unitDisplay: 'short' }).format(amount);
+  }
+
+  /** "4.3 of 7" on the rings ("4.3" in a compact card), or the share of the hopper or roof that is full. */
   private _position(silo: Silo, r: Reading): string {
     const p = r.position;
     const filled = (kind: 'bottom' | 'top') =>
       this._percent((r.parts.find((f) => f.part.kind === kind)?.fraction ?? 0) * 100);
-    if (p.kind === 'bottom') return this._t('card.in_bottom', { percent: filled('bottom') });
-    if (p.kind === 'top') return this._t('card.in_top', { percent: filled('top') });
+    if (p.kind === 'bottom' || p.kind === 'top') return filled(p.kind);
     if (p.kind === 'empty') return this._t('card.empty');
-    return this._t('card.rings_value', { rings: this._number(p.rings, 1), total: String(silo.geometry.rings) });
+    const rings = this._number(p.rings, 1);
+    return this._compact ? rings : this._t('card.rings_value', { rings, total: String(silo.geometry.rings) });
   }
 
   private _moreInfo(): void {
@@ -793,12 +844,15 @@ export class SiloCard extends LitElement {
       background: color-mix(in srgb, var(--silo-low) 16%, transparent);
       --mdc-icon-size: 14px;
     }
-    .badge.stale {
-      color: var(--secondary-text-color);
-      background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent);
+    /* How long ago, in the sensor light's colour: orange with only the last reading, red past stale_after. */
+    .row.updated.stale dt.icon,
+    .row.updated.stale dd {
+      color: var(--warning-color, #ffa600);
     }
-    /* Past stale_after: the sensor stopped sending, a fault worth the red. */
-    .badge.old ha-icon {
+    .row.updated.old dt.icon,
+    .row.updated.old dd,
+    .row.updated.none dt.icon,
+    .row.updated.none dd {
       color: var(--error-color, #db4437);
     }
     dl {
@@ -818,11 +872,16 @@ export class SiloCard extends LitElement {
       justify-content: flex-start;
       gap: 10px;
     }
+    /* In a narrow card the value is cut short, not the icon. */
     .row.with-icon dd {
       text-align: left;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     dt.icon {
       display: flex;
+      flex-shrink: 0;
       align-items: center;
       overflow: visible;
       --mdc-icon-size: 18px;
@@ -859,9 +918,12 @@ export class SiloCard extends LitElement {
       flex: 1 1 auto;
       justify-content: center;
     }
+    /* The numbers as a block centred under the silo, their lines still left-aligned. */
     ha-card.layout-stacked .stats {
       flex: 0 0 auto;
-      align-self: stretch;
+      align-self: center;
+      width: fit-content;
+      max-width: 100%;
     }
     @container (max-width: 14em) {
       ha-card.layout-auto .body {
@@ -875,7 +937,9 @@ export class SiloCard extends LitElement {
       }
       ha-card.layout-auto .stats {
         flex: 0 0 auto;
-        align-self: stretch;
+        align-self: center;
+        width: fit-content;
+        max-width: 100%;
       }
     }
   `;
