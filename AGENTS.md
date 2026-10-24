@@ -34,7 +34,9 @@ yarn build                        # lint, translations, type check, tests, then 
 * Nothing from Home Assistant is inserted as HTML: no `unsafeHTML` or `innerHTML`; let Lit escape the text.
 * `dist/` is never committed; the release workflow builds `silo-card.js` from the tag and attaches it.
 * A release bumps `package.json` and `CARD_VERSION` in `src/const.ts` in a commit titled
-  `[Card] Version X.Y.Z`, then a GitHub release tagged `vX.Y.Z`.
+  `[Card] Version X.Y.Z`, then pushes a tag `vX.Y.Z`. The release workflow creates a draft release with
+  `silo-card.js` attached; publish it once its notes (English, then French) are written. Don't create the
+  release by hand: HACS could see it before the file is attached.
 
 ## Commits and publishing
 
