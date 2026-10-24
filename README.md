@@ -111,10 +111,11 @@ Full means filled to the eave, the top of the wall, which is how most bins are r
 | `display_weight_unit` | `weight_unit` | Unit the card shows weights in: `t`, `kg`, `ton` or `lb`. |
 | `display_volume_unit` | `volume_unit` | Unit the card shows volumes in: `m3`, `L`, `ft3` or `bu`. |
 | `low_level` | `20` | Percentage under which the grain is drawn in the warning colour. `0` turns it off. |
+| `show_low_badge` | `true` | Show the *Low* badge beside the main value under `low_level`. Off, the grain is still drawn in the warning colour, and the layout doesn't move. |
 | `title` | device name | Card title. |
 | `icon` | `mdi:silo` | Header icon. |
 | `color` | amber | Grain colour: a theme colour name (`amber`, `brown`, `green`…) or any CSS colour. |
-| `primary` | `percent` | The big value at the top: `percent` (“59% full”) or any of the `rows` below but `updated`, for example `rings` (“3.8 of 7 rings”, or “60%” for how full the hopper or roof is). Without a grain, density or capacity, `weight` and `remaining` show the fill instead. `none`: no big value, only the `rows` (the sensor's state and the *Low* badge still show). |
+| `primary` | `percent` | The big value at the top: `percent` (“59% full”) or any of the `rows` below but `updated`, for example `rings` (“3.8 of 7 rings”, or “60%” for how full the hopper or roof is). Without a grain, density or capacity, `weight` and `remaining` show the fill instead. `none`: no big value, only the `rows` (the sensor's state and the *Low* badge still show, unless `show_unavailable` or `show_low_badge` is off). |
 | `rows` | `[weight, remaining, level, rings]` | The lines beside the silo, in this order: `percent` (the fill), `weight` (needs a grain, density or capacity), `remaining` (room left, in weight), `volume`, `level` (grain height), `rings` (“4.3 of 7”, or how full the hopper or roof is: “60%”), `distance` (from the sensor down to the grain) and `updated` (how long ago the sensor read: orange with only the last reading, red past `stale_after`). |
 | `texture` | `stipple` | Over the grain colour: `stipple` (fine dots), `layers` (soft wavy lines), `shaded` (no pattern: a round bin's shading) or `hatching` (thin 45° lines). |
 | `labels` | `text` | `text`: each line's name. `icons`: an icon instead (the name shows on hover). A card 4 columns wide or less always shows icons. |
@@ -122,6 +123,7 @@ Full means filled to the eave, the top of the wall, which is how most bins are r
 | `title_position` | `header` | `header`: the title and icon above the card. `stats`: the title alone, with the grain, above the main value; the card is then shorter. |
 | `show_sensor` | `true` | Draw the sensor and its beam. The sensor is a status light: green with a reading, orange with only the last one, red with none or one older than `stale_after`. |
 | `show_last_reading` | `true` | While the sensor has no reading (unavailable or unknown), show its last one from the history, greyed. |
+| `show_unavailable` | `true` | While the sensor has no reading and no last one, show its state (*Unavailable*, *Unknown*) in place of the main value. Off, the layout doesn't move; the faded silo and the red status light still say it. |
 | `stale_after` | — | Show the sensor as unavailable when its last reading is older than this: minutes (`90`), or `{days: 1}`, `{hours: 6}`… Off when not set. |
 | `language` | `auto` | `auto` (Home Assistant's language), `en` or `fr`. |
 
@@ -304,10 +306,11 @@ Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la cap
 | `display_weight_unit` | `weight_unit` | Unité des poids affichés : `t`, `kg`, `ton` ou `lb`. |
 | `display_volume_unit` | `volume_unit` | Unité des volumes affichés : `m3`, `L`, `ft3` ou `bu`. |
 | `low_level` | `20` | Pourcentage sous lequel le grain est dessiné dans la couleur d’avertissement. `0` le désactive. |
+| `show_low_badge` | `true` | Afficher la pastille *Bas* à côté de la valeur principale sous `low_level`. Désactivée, le grain est quand même dessiné dans la couleur d’avertissement, et la mise en page ne bouge pas. |
 | `title` | nom de l’appareil | Titre de la carte. |
 | `icon` | `mdi:silo` | Icône de l’en-tête. |
 | `color` | ambre | Couleur du grain : un nom de couleur du thème (`amber`, `brown`, `green`…) ou toute couleur CSS. |
-| `primary` | `percent` | La grande valeur en haut : `percent` (« 59 % plein ») ou n’importe laquelle des lignes `rows` ci-dessous sauf `updated`, par exemple `rings` (« 3,8 sur 7 sections », ou « 60 % » pour le remplissage de la trémie ou du toit). Sans grain, masse volumique ni capacité, `weight` et `remaining` affichent plutôt le remplissage. `none` : pas de grande valeur, seulement les lignes `rows` (l’état du capteur et la pastille *Bas* s’affichent quand même). |
+| `primary` | `percent` | La grande valeur en haut : `percent` (« 59 % plein ») ou n’importe laquelle des lignes `rows` ci-dessous sauf `updated`, par exemple `rings` (« 3,8 sur 7 sections », ou « 60 % » pour le remplissage de la trémie ou du toit). Sans grain, masse volumique ni capacité, `weight` et `remaining` affichent plutôt le remplissage. `none` : pas de grande valeur, seulement les lignes `rows` (l’état du capteur et la pastille *Bas* s’affichent quand même, sauf si `show_unavailable` ou `show_low_badge` est désactivé). |
 | `rows` | `[weight, remaining, level, rings]` | Les lignes à côté du silo, dans cet ordre : `percent` (le remplissage), `weight` (poids; il faut un grain, une masse volumique ou une capacité), `remaining` (place libre, en poids), `volume`, `level` (hauteur du grain), `rings` (« 4,3 sur 7 » sections, ou à quel point la trémie ou le toit est plein : « 60 % »), `distance` (entre le capteur et le grain) et `updated` (depuis quand le capteur a mesuré : orange avec seulement la dernière mesure, rouge passé `stale_after`). |
 | `texture` | `stipple` | Par-dessus la couleur du grain : `stipple` (pointillé), `layers` (couches ondulées), `shaded` (sans motif : l’ombrage d’une cellule ronde) ou `hatching` (hachures fines à 45°). |
 | `labels` | `text` | `text` : le nom de chaque ligne. `icons` : une icône à la place (le nom s’affiche au survol). Une carte de 4 colonnes ou moins affiche toujours les icônes. |
@@ -315,6 +318,7 @@ Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la cap
 | `title_position` | `header` | `header` : le titre et l’icône en haut de la carte. `stats` : le titre seul, avec le grain, au-dessus de la valeur principale ; la carte est alors moins haute. |
 | `show_sensor` | `true` | Dessiner le capteur et son faisceau. Le capteur est un voyant : vert avec une mesure, orange avec seulement la dernière, rouge sans mesure ou avec une plus vieille que `stale_after`. |
 | `show_last_reading` | `true` | Quand le capteur n’a pas de mesure (indisponible ou inconnu), afficher sa dernière dans l’historique, grisée. |
+| `show_unavailable` | `true` | Quand le capteur n’a ni mesure ni dernière mesure, afficher son état (*Indisponible*, *Inconnu*) à la place de la valeur principale. Désactivé, la mise en page ne bouge pas; le silo estompé et le voyant rouge le disent quand même. |
 | `stale_after` | — | Afficher le capteur comme indisponible quand sa dernière mesure est plus vieille que ce délai : en minutes (`90`), ou `{days: 1}`, `{hours: 6}`… Désactivé si absent. |
 | `language` | `auto` | `auto` (langue de Home Assistant), `en` ou `fr`. |
 
