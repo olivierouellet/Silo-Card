@@ -361,7 +361,7 @@ const CASES: Case[] = [
     config: {
       entity: 'sensor.soue1ben2_fill',
       primary: 'rings',
-      rows: ['percent', 'remaining', 'weight', 'level'],
+      rows: ['percent', 'remaining', 'weight', 'level', 'updated'],
       // Entered in inches and short tons; shown in metres and tonnes.
       display_unit: 'm',
       display_weight_unit: 't',
@@ -373,7 +373,7 @@ const CASES: Case[] = [
     config: {
       ...BIN_FOR_ICONS,
       labels: 'icons',
-      rows: ['percent', 'weight', 'remaining', 'level', 'rings', 'distance'],
+      rows: ['percent', 'weight', 'remaining', 'level', 'rings', 'distance', 'updated'],
     },
   },
   {
@@ -411,12 +411,18 @@ const CASES: Case[] = [
   {
     title: 'Too old · last update 5 h ago, stale_after: 1 h',
     fill: 0.5,
-    config: { ...BIN_FOR_ICONS, entity: 'sensor.old', labels: 'icons', stale_after: { hours: 1 } },
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.old',
+      labels: 'icons',
+      rows: ['weight', 'remaining', 'level', 'updated'],
+      stale_after: { hours: 1 },
+    },
   },
   {
     title: 'Stale · unavailable, last reading from the history',
     fill: 0,
-    config: { ...BIN_FOR_ICONS, entity: 'sensor.stale', labels: 'icons', rows: ['weight', 'remaining', 'distance'] },
+    config: { ...BIN_FOR_ICONS, entity: 'sensor.stale', labels: 'icons', rows: ['weight', 'remaining', 'distance', 'updated'] },
   },
   {
     title: 'Errors · no reading, no dimensions',
