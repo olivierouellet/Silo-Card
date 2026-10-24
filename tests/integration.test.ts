@@ -11,6 +11,7 @@ const fill: HassEntity = {
   entity_id: 'sensor.soue_1_ben_2_fill_level',
   state: '55.7',
   last_updated: '',
+  last_changed: '',
   attributes: {
     unit_of_measurement: '%',
     source: 'sensor.soue1ben2_distance',
