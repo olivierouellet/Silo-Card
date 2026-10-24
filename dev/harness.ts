@@ -388,6 +388,37 @@ const CASES: Case[] = [
     },
   },
   {
+    title: 'Title above the main value (title_position: stats)',
+    fill: 0.55,
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.silo_ble_distance',
+      grain: 'wheat',
+      title_position: 'stats',
+    },
+  },
+  {
+    title: 'No main value (primary: none) · title above',
+    fill: 0.55,
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.silo_ble_distance',
+      title_position: 'stats',
+      primary: 'none',
+      rows: ['percent', 'weight', 'remaining', 'level', 'rings'],
+    },
+  },
+  {
+    title: 'Too old · last update 5 h ago, stale_after: 1 h',
+    fill: 0.5,
+    config: { ...BIN_FOR_ICONS, entity: 'sensor.old', labels: 'icons', stale_after: { hours: 1 } },
+  },
+  {
+    title: 'Stale · unavailable, last reading from the history',
+    fill: 0,
+    config: { ...BIN_FOR_ICONS, entity: 'sensor.stale', labels: 'icons', rows: ['weight', 'remaining', 'distance'] },
+  },
+  {
     title: 'Errors · no reading, no dimensions',
     fill: 0,
     config: { entity: 'sensor.offline', diameter: 3, ring_height: 0.8, rings: 5, bottom: 'cone', bottom_height: 1.8 },
@@ -401,15 +432,44 @@ const BIN = CASES[0].config;
 const params = new URLSearchParams(location.search);
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/** When the offline sensors lost their reading: three hours ago. */
+const LOST = new Date(Date.now() - 3 * 3600_000).toISOString();
+
+/** The recorder: `sensor.stale` read 214 in until it went unavailable; `sensor.offline` has no history. */
+async function recorder(msg: { entity_ids: string[] }): Promise<Record<string, Array<{ s: string; lu: number }>>> {
+  const lost = new Date(LOST).getTime() / 1000;
+  const id = msg.entity_ids[0];
+  if (id !== 'sensor.stale') return {};
+  return {
+    [id]: [
+      { s: '214.0', lu: lost - 600 },
+      { s: 'unavailable', lu: lost },
+    ],
+  };
+}
+
 /** Sensor states for every case, at `scale` × its own fill. */
 function makeHass(lang: string, scale: number): HomeAssistant {
   const states: HomeAssistant['states'] = {
-    'sensor.offline': { entity_id: 'sensor.offline', state: 'unavailable', last_updated: '', attributes: {} },
+    'sensor.offline': {
+      entity_id: 'sensor.offline',
+      state: 'unavailable',
+      last_updated: LOST,
+      last_changed: LOST,
+      attributes: {},
+    },
+    'sensor.stale': {
+      entity_id: 'sensor.stale',
+      state: 'unavailable',
+      last_updated: LOST,
+      last_changed: LOST,
+      attributes: { unit_of_measurement: 'in', device_class: 'distance' },
+    },
   };
   for (const c of CASES) {
     const cfg = { ...DEFAULTS, type: 'custom:silo-card', ...c.config } as ResolvedConfig;
     const silo = siloFromConfig(cfg);
-    if (!silo || !cfg.entity || cfg.entity === 'sensor.offline' || cfg.entity.endsWith('_fill')) continue;
+    if (!silo || !cfg.entity || cfg.entity in states || cfg.entity.endsWith('_fill')) continue;
     const fill = Math.min(c.fill * scale, 1);
     // Fill measured up to the peak; the sensor reports in metres, like ESPHome.
     const level = fill * silo.height;
@@ -418,9 +478,13 @@ function makeHass(lang: string, scale: number): HomeAssistant {
       entity_id: cfg.entity,
       state: value.toFixed(3),
       last_updated: new Date().toISOString(),
+      last_changed: new Date().toISOString(),
       attributes: { unit_of_measurement: 'm', device_class: 'distance' },
     };
   }
+  // A sensor that last updated five hours ago.
+  const old = new Date(Date.now() - 5 * 3600_000).toISOString();
+  states['sensor.old'] = { ...states['sensor.old'], last_updated: old, last_changed: old };
   // The Silo integration's fill sensor for the first bin: its silo and its grain height ride along.
   const bin = { ...DEFAULTS, type: 'custom:silo-card', ...BIN } as ResolvedConfig;
   const silo = siloFromConfig(bin)!;
@@ -429,6 +493,7 @@ function makeHass(lang: string, scale: number): HomeAssistant {
     entity_id: 'sensor.soue1ben2_fill',
     state: readSilo(silo, level, 'level')!.percent.toFixed(1),
     last_updated: '',
+    last_changed: '',
     attributes: {
       unit_of_measurement: '%',
       source: 'sensor.soue1ben2_distance',
@@ -436,7 +501,13 @@ function makeHass(lang: string, scale: number): HomeAssistant {
       silo: Object.fromEntries(INTEGRATION_KEYS.filter((k) => k in BIN).map((k) => [k, bin[k]])),
     },
   };
-  return { language: lang, locale: { language: lang }, config: { unit_system: { length: 'km' } }, states };
+  return {
+    language: lang,
+    locale: { language: lang },
+    config: { unit_system: { length: 'km' } },
+    states,
+    callWS: recorder as HomeAssistant['callWS'],
+  };
 }
 
 let hass = makeHass(params.get('lang') ?? 'en', 1);
