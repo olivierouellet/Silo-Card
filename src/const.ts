@@ -34,7 +34,7 @@ export const ROW_ICONS: Record<(typeof ROWS)[number], string> = {
   volume: 'mdi:cube-outline',
   level: 'mdi:arrow-expand-vertical',
   rings: 'mdi:ladder',
-  distance: 'mdi:signal-distance-variant',
+  distance: 'mdi:arrow-expand-down',
 };
 
 export const TEXTURES = ['stipple', 'layers', 'shaded', 'hatching'] as const;
@@ -63,8 +63,10 @@ export const DEFAULTS = {
   rows: ['weight', 'remaining', 'level', 'rings'],
   labels: 'text',
   layout: 'auto',
+  title_position: 'header',
   texture: 'stipple',
   show_sensor: true,
+  show_last_reading: true,
   language: 'auto',
 } as const satisfies Partial<SiloCardConfig>;
 

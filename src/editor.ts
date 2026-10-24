@@ -314,7 +314,14 @@ export class SiloCardEditor extends LitElement {
         expanded: !!this._integration,
         title: this._t('editor.section_display'),
         schema: [
-          { name: 'title', selector: { text: {} } },
+          {
+            name: '',
+            type: 'grid',
+            schema: [
+              { name: 'title', selector: { text: {} } },
+              this._select('title_position', ['header', 'stats'], 'title_position_'),
+            ],
+          },
           {
             name: '',
             type: 'grid',
@@ -328,7 +335,10 @@ export class SiloCardEditor extends LitElement {
             selector: {
               select: {
                 mode: 'dropdown',
-                options: ROWS.map((row) => ({ value: row, label: this._t(`editor.row_${row}`) })),
+                options: [
+                  ...ROWS.map((row) => ({ value: row, label: this._t(`editor.row_${row}`) })),
+                  { value: 'none', label: this._t('editor.primary_none') },
+                ],
               },
             },
           },
@@ -355,6 +365,8 @@ export class SiloCardEditor extends LitElement {
             selector: { number: { min: 0, max: 100, step: 5, mode: 'slider', unit_of_measurement: '%' } },
           },
           ...(measure === 'distance' ? [{ name: 'show_sensor', selector: { boolean: {} } }] : []),
+          { name: 'show_last_reading', selector: { boolean: {} } },
+          { name: 'stale_after', selector: { duration: { enable_day: true } } },
           this._select('language', ['auto', 'en', 'fr'], 'lang_'),
         ],
       },
@@ -376,6 +388,8 @@ export class SiloCardEditor extends LitElement {
       case 'capacity':
       case 'include_roof':
       case 'low_level':
+      case 'show_last_reading':
+      case 'stale_after':
       case 'title':
       case 'primary':
       case 'unit':

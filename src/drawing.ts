@@ -5,9 +5,17 @@ import { Part, wallPoints, widthAt } from './geometry';
 import type { Reading, Silo } from './silo';
 import type { Texture } from './types';
 
+/**
+ * The sensor's reading: current, only the last one known while the sensor is unavailable (stale) or after it
+ * stopped sending (old, past `stale_after`), or none.
+ */
+export type SensorStatus = 'ok' | 'stale' | 'old' | 'none';
+
 export interface DrawOptions {
   showSensor: boolean;
   low: boolean;
+  /** Colours the sensor; without a current reading the silo is faded and has no beam. */
+  status: SensorStatus;
   texture: Texture;
   /** Tooltip for each part, in the order of `silo.parts`. */
   partTitles: string[];
@@ -47,7 +55,7 @@ export function drawSilo(silo: Silo, reading: Reading | null, opts: DrawOptions)
   // The <svg> element itself in `html`; Lit's `svg` tag is for the fragments inside it.
   return html`
     <svg
-      class="silo ${opts.low ? 'low' : ''}"
+      class="silo status-${opts.status} ${opts.low ? 'low' : ''}"
       viewBox="${box.x} ${box.y} ${box.w} ${box.h}"
       width=${Math.round((DRAWING_HEIGHT * box.w) / box.h)}
       height=${DRAWING_HEIGHT}
@@ -55,24 +63,25 @@ export function drawSilo(silo: Silo, reading: Reading | null, opts: DrawOptions)
       role="img"
     >
       <defs>${texture.defs}</defs>
-      <line
-        class="ground"
-        x1=${box.x}
-        x2=${box.x + box.w}
-        y1=${-ground}
-        y2=${-ground}
-        vector-effect="non-scaling-stroke"
-      />
-      ${
-        bottom
-          ? [-legX, legX].map(
-              (x) =>
-                svg`<line class="leg" x1=${x} x2=${x} y1=${-bottom.z1} y2=${-ground} vector-effect="non-scaling-stroke" />`,
-            )
-          : nothing
-      }
-      ${parts.map(
-        (part, i) => svg`
+      <g class="structure">
+        <line
+          class="ground"
+          x1=${box.x}
+          x2=${box.x + box.w}
+          y1=${-ground}
+          y2=${-ground}
+          vector-effect="non-scaling-stroke"
+        />
+        ${
+          bottom
+            ? [-legX, legX].map(
+                (x) =>
+                  svg`<line class="leg" x1=${x} x2=${x} y1=${-bottom.z1} y2=${-ground} vector-effect="non-scaling-stroke" />`,
+              )
+            : nothing
+        }
+        ${parts.map(
+          (part, i) => svg`
           <g class="part ${part.kind}">
             <title>${opts.partTitles[i] ?? ''}</title>
             <polygon class="wall" points=${outline(part)} vector-effect="non-scaling-stroke" />
@@ -87,19 +96,31 @@ export function drawSilo(silo: Silo, reading: Reading | null, opts: DrawOptions)
             <polygon class="edge" points=${outline(part)} vector-effect="non-scaling-stroke" />
           </g>
         `,
-      )}
-      ${
-        reading && level > 0
-          ? svg`<line class="surface" x1=${-surfaceHalf(parts, level)} x2=${surfaceHalf(parts, level)}
+        )}
+        ${
+          // The seams between parts under the grain, drawn again over it in a colour that stands out on it.
+          reading
+            ? parts.slice(1).map((part) =>
+                level > part.z0
+                  ? svg`<line class="seam" x1=${-widthAt(part, part.z0) / 2} x2=${widthAt(part, part.z0) / 2}
+                    y1=${-part.z0} y2=${-part.z0} vector-effect="non-scaling-stroke" />`
+                  : nothing,
+              )
+            : nothing
+        }
+        ${
+          reading && level > 0
+            ? svg`<line class="surface" x1=${-surfaceHalf(parts, level)} x2=${surfaceHalf(parts, level)}
               y1=${-level} y2=${-level} vector-effect="non-scaling-stroke" />`
-          : nothing
-      }
+            : nothing
+        }
+      </g>
       ${
         opts.showSensor
           ? svg`<g class="sensor">
               <title>${opts.sensorTitle ?? ''}</title>
               ${
-                reading
+                reading && opts.status === 'ok'
                   ? svg`<line class="beam" x1="0" x2="0" y1=${-sensorHeight} y2=${-level} vector-effect="non-scaling-stroke" />`
                   : nothing
               }

@@ -26,6 +26,18 @@ export const KG_PER_M3: Record<DensityUnit, number> = {
   'lb/ft3': POUND / FOOT ** 3,
 };
 
+/** A delay in the card's config: minutes, or the object of Home Assistant's duration selector. */
+export type Duration = number | { days?: number; hours?: number; minutes?: number; seconds?: number };
+
+/** A delay in milliseconds; 0 when it isn't set. */
+export function durationMs(duration: Duration | undefined): number {
+  if (typeof duration === 'number') return Math.max(duration, 0) * 60_000;
+  if (!duration || typeof duration !== 'object') return 0;
+  const { days = 0, hours = 0, minutes = 0, seconds = 0 } = duration;
+  const ms = (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+  return Number.isFinite(ms) ? Math.max(ms, 0) : 0;
+}
+
 /** Units a distance sensor may report in, as Home Assistant spells them. */
 const SENSOR_METRES: Record<string, number> = { mm: 0.001, cm: 0.01, m: 1, km: 1000, in: 0.0254, ft: FOOT, yd: 0.9144 };
 

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
-import type { HomeAssistant, Row, SiloCardConfig } from './types';
+import type { HassEntity, HomeAssistant, Measure, Row, SiloCardConfig } from './types';
 import {
   CARD_TAG,
   CARD_VERSION,
@@ -13,9 +13,9 @@ import {
   ROW_ICONS,
   ResolvedConfig,
 } from './const';
-import { drawSilo } from './drawing';
+import { SensorStatus, drawSilo } from './drawing';
 import { Reading, Silo, readSilo, siloFromConfig } from './silo';
-import { CUBIC_METRES, KILOGRAMS, LengthUnit, METRES, VolumeUnit, WeightUnit, sensorMetres } from './units';
+import { CUBIC_METRES, KILOGRAMS, LengthUnit, METRES, VolumeUnit, WeightUnit, durationMs, sensorMetres } from './units';
 import { Lang, intlLocale, localize, resolveLanguage } from './localize/localize';
 import { integrationLevel, integrationSilo, integrationSource } from './integration';
 
@@ -41,6 +41,37 @@ w.customCards.push({
 
 /** Between a number and its unit. */
 const NBSP = '\u00a0';
+/** In place of a value while the sensor has no reading. */
+const DASH = '\u2014';
+/** How far back the recorder is searched for the last reading, step by step (10 days is its default). */
+const LOOKBACK_HOURS = [1, 24, 240];
+
+/** A state from `history/history_during_period` with `minimal_response`: times in seconds. */
+interface HistoryState {
+  s: string;
+  lu: number;
+  lc?: number;
+}
+
+/** A reading that isn't current: in metres, what the sensor measures, and when it stopped (ms). */
+interface LastReading {
+  value: number;
+  measure: Measure;
+  time: number;
+}
+
+/** setTimeout's longest delay, about 24 days. */
+const MAX_TIMEOUT = 2 ** 31 - 1;
+
+/** Why there is no current reading, from `_measure`. */
+interface Missing {
+  message: string;
+  /** The sensor that has no reading: the integration's source, or the card's entity. */
+  sensor: string;
+  state: string;
+  /** The sensor has a value, but older than `stale_after`. */
+  tooOld?: boolean;
+}
 
 /** Decimals shown for each unit. */
 const LENGTH_DECIMALS: Record<LengthUnit, number> = { m: 2, cm: 0, mm: 0, ft: 1, in: 0 };
@@ -94,6 +125,16 @@ export class SiloCard extends LitElement {
   @state() public hass?: HomeAssistant;
   /** The config being drawn: the card's, with the integration's silo over it. */
   private _view!: ResolvedConfig;
+  /**
+   * The sensor's last reading before it lost it, from the recorder: `state` in the sensor's unit, and `time`
+   * (ms) when the reading stopped. `key` is the sensor and when it lost the reading; nothing found leaves only it.
+   */
+  @state() private _last?: { key: string; state?: string; time?: number };
+  /** The sensor whose last reading `updated` should look up, set by `render`. */
+  private _lookup?: { sensor: string; since: string };
+  /** When the current reading becomes too old (`stale_after`), set by `render`; a timer redraws the card then. */
+  private _staleAt?: number;
+  private _staleTimer?: ReturnType<typeof setTimeout>;
 
   public setConfig(config: SiloCardConfig): void {
     if (!config) throw new Error('Invalid configuration');
@@ -157,26 +198,120 @@ export class SiloCard extends LitElement {
     return device?.name_by_user || device?.name || this._t('card.default_title');
   }
 
-  /** The sensor's value in metres, or a message saying why there is none. */
-  private _measure(integration: boolean): { value?: number; message?: string } {
+  /**
+   * The sensor's value in metres, or a message saying why there is none, with `missing` when the sensor is
+   * merely without a reading (unknown, unavailable, or older than `stale_after`, then given as `old`) rather
+   * than set up wrong.
+   */
+  private _measure(integration: boolean): {
+    value?: number;
+    message?: string;
+    missing?: Missing;
+    old?: LastReading;
+  } {
     const cfg = this._config!;
     if (!cfg.entity) return { message: this._t('card.no_entity') };
     const stateObj = this.hass!.states[cfg.entity];
     if (!stateObj) return { message: this._t('card.entity_not_found', { entity: cfg.entity }) };
     if (integration) {
       const value = integrationLevel(stateObj);
-      if (Number.isFinite(value)) return { value };
       const source = integrationSource(stateObj) ?? cfg.entity;
-      const sourceState = this.hass!.states[source]?.state ?? 'unknown';
-      return { message: this._t('card.unavailable', { entity: source, state: sourceState }) };
+      if (Number.isFinite(value)) return this._fresh(value, 'level', this.hass!.states[source] ?? stateObj);
+      const state = this.hass!.states[source]?.state ?? 'unknown';
+      const message = this._t('card.unavailable', { entity: source, state });
+      return { message, missing: { message, sensor: source, state } };
     }
     const value = sensorMetres(stateObj.state, stateObj.attributes.unit_of_measurement, cfg.unit);
-    if (Number.isFinite(value)) return { value };
+    if (Number.isFinite(value)) return this._fresh(value, this._view.measure, stateObj);
     if (Number.isFinite(Number.parseFloat(stateObj.state))) {
       const unit = String(stateObj.attributes.unit_of_measurement ?? '');
       return { message: this._t('card.not_a_length', { entity: cfg.entity, unit }) };
     }
-    return { message: this._t('card.unavailable', { entity: cfg.entity, state: stateObj.state }) };
+    const message = this._t('card.unavailable', { entity: cfg.entity, state: stateObj.state });
+    return { message, missing: { message, sensor: cfg.entity, state: stateObj.state } };
+  }
+
+  /**
+   * A reading, unless the sensor last updated longer ago than `stale_after`: then it is missing, and the
+   * reading is only the last one. Home Assistant updates a sensor only when its value changes, unless the
+   * sensor forces it (ESPHome's `force_update`).
+   */
+  private _fresh(value: number, measure: Measure, sensor: HassEntity): ReturnType<SiloCard['_measure']> {
+    const limit = durationMs(this._view.stale_after);
+    const time = Date.parse(sensor.last_updated);
+    if (!limit || !Number.isFinite(time)) return { value };
+    if (Date.now() - time <= limit) {
+      this._staleAt = time + limit;
+      return { value };
+    }
+    const message = this._t('card.too_old', { entity: sensor.entity_id, time: this._ago(time) });
+    return {
+      message,
+      missing: { message, sensor: sensor.entity_id, state: 'unavailable', tooOld: true },
+      old: { value, measure, time },
+    };
+  }
+
+  /**
+   * The last reading of a sensor that has none now, in metres, and when it stopped; undefined until the
+   * recorder has answered, or when it has nothing.
+   */
+  private _lastReading(missing: Missing): LastReading | undefined {
+    const stateObj = this.hass!.states[missing.sensor];
+    this._lookup = stateObj ? { sensor: missing.sensor, since: stateObj.last_changed } : undefined;
+    const last = this._last;
+    if (!stateObj || !last?.state || last.key !== `${missing.sensor}@${stateObj.last_changed}`) return undefined;
+    const value = sensorMetres(last.state, stateObj.attributes.unit_of_measurement, this._view.unit);
+    return Number.isFinite(value) ? { value, measure: this._view.measure, time: last.time! } : undefined;
+  }
+
+  protected updated(): void {
+    if (this._lookup) this._fetchLast(this._lookup.sensor, this._lookup.since);
+    clearTimeout(this._staleTimer);
+    if (this._staleAt !== undefined) {
+      const delay = Math.min(Math.max(this._staleAt - Date.now(), 0) + 1000, MAX_TIMEOUT);
+      this._staleTimer = setTimeout(() => this.requestUpdate(), delay);
+    }
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    clearTimeout(this._staleTimer);
+  }
+
+  /**
+   * Asks the recorder for the sensor's last number before `since`, when it lost its reading: an hour back,
+   * then a day, then ten. The reading stopped when the state after it began.
+   */
+  private async _fetchLast(sensor: string, since: string): Promise<void> {
+    const key = `${sensor}@${since}`;
+    if (this._last?.key === key || !this.hass?.callWS) return;
+    this._last = { key };
+    const end = new Date(since).getTime();
+    for (const hours of LOOKBACK_HOURS) {
+      let states: HistoryState[];
+      try {
+        const result = await this.hass.callWS<Record<string, HistoryState[]>>({
+          type: 'history/history_during_period',
+          start_time: new Date(end - hours * 3600_000).toISOString(),
+          end_time: new Date(end).toISOString(),
+          entity_ids: [sensor],
+          minimal_response: true,
+          no_attributes: true,
+        });
+        states = result[sensor] ?? [];
+      } catch {
+        return;
+      }
+      let i = states.length - 1;
+      while (i >= 0 && !Number.isFinite(Number.parseFloat(states[i].s))) i--;
+      if (i >= 0) {
+        const next = states[i + 1];
+        const time = next ? (next.lc ?? next.lu) * 1000 : end;
+        if (this._last?.key === key) this._last = { key, state: states[i].s, time };
+        return;
+      }
+    }
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -184,22 +319,33 @@ export class SiloCard extends LitElement {
     const fromIntegration = integrationSilo(this._config.entity ? this.hass.states[this._config.entity] : undefined);
     const cfg = (this._view = { ...this._config, ...fromIntegration } as ResolvedConfig);
     const silo = siloFromConfig(cfg);
-    const { value, message } = this._measure(!!fromIntegration);
-    // The integration gives the grain height, whatever its own sensor measures.
-    const measure = fromIntegration ? 'level' : cfg.measure;
-    const reading = silo && value !== undefined ? readSilo(silo, value, measure) : null;
-    const low = !!reading && cfg.low_level > 0 && reading.percent < cfg.low_level;
+    this._lookup = this._staleAt = undefined;
+    const { value, message, missing, old } = this._measure(!!fromIntegration);
+    const last = silo && missing && cfg.show_last_reading ? (old ?? this._lastReading(missing)) : undefined;
+    // The integration gives the grain height, whatever its own sensor measures; its source's last reading
+    // in the recorder is what that sensor measures.
+    const measure = value !== undefined ? (fromIntegration ? 'level' : cfg.measure) : (last?.measure ?? cfg.measure);
+    const measured = value ?? last?.value;
+    const reading = silo && measured !== undefined ? readSilo(silo, measured, measure) : null;
+    const status: SensorStatus = value !== undefined ? 'ok' : !reading ? 'none' : missing?.tooOld ? 'old' : 'stale';
+    const low = status === 'ok' && !!reading && cfg.low_level > 0 && reading.percent < cfg.low_level;
     const grain = cfg.grain ? this._t(`grains.${cfg.grain}`) : undefined;
+    // The title moves above the main value only when there is one; a setup message keeps the header.
+    const titleInStats = cfg.title_position === 'stats' && !!silo && !!(reading || missing);
 
     return html`
       <ha-card class="layout-${cfg.layout}" style=${styleMap({ '--silo-grain': cssColor(cfg.color) })}>
-        <div class="header">
-          <ha-icon icon=${cfg.icon || DEFAULT_ICON}></ha-icon>
-          <div class="titles">
-            <div class="title">${this._title()}</div>
-            ${grain ? html`<div class="subtitle">${grain}</div>` : nothing}
-          </div>
-        </div>
+        ${
+          titleInStats
+            ? nothing
+            : html`<div class="header">
+                <ha-icon icon=${cfg.icon || DEFAULT_ICON}></ha-icon>
+                <div class="titles">
+                  <div class="title">${this._title()}</div>
+                  ${grain ? html`<div class="subtitle">${grain}</div>` : nothing}
+                </div>
+              </div>`
+        }
         ${
           !silo
             ? html`<div class="message">${this._t('card.no_dimensions')}</div>`
@@ -211,9 +357,14 @@ export class SiloCard extends LitElement {
                   @click=${this._moreInfo}
                   @keydown=${this._keydown}
                 >
-                  <div class="drawing">${this._renderDrawing(silo, reading, low)}</div>
+                  <div class="drawing">${this._renderDrawing(silo, reading, low, status)}</div>
                   <div class="stats">
-                    ${reading ? this._renderStats(silo, reading, low) : html`<div class="message">${message}</div>`}
+                    ${
+                      reading || missing
+                        ? html`${titleInStats ? this._renderName(grain) : nothing}
+                          ${this._renderStats(silo, reading, low, missing, last?.time)}`
+                        : html`<div class="message">${message}</div>`
+                    }
                   </div>
                 </div>
               `
@@ -222,7 +373,7 @@ export class SiloCard extends LitElement {
     `;
   }
 
-  private _renderDrawing(silo: Silo, reading: Reading | null, low: boolean): TemplateResult {
+  private _renderDrawing(silo: Silo, reading: Reading | null, low: boolean, status: SensorStatus): TemplateResult {
     const cfg = this._view;
     const partName = (kind: string, index: number) =>
       this._t(`card.part_${kind}`, { index: String(silo.geometry.rings > 1 ? index : '') }).trim();
@@ -239,37 +390,79 @@ export class SiloCard extends LitElement {
     return drawSilo(silo, reading, {
       showSensor: cfg.show_sensor && cfg.measure === 'distance',
       low,
+      status,
       texture: cfg.texture,
       partTitles,
-      sensorTitle: reading ? this._t('card.sensor_tooltip', { distance: this._length(reading.distance) }) : undefined,
+      sensorTitle:
+        status === 'ok' && reading
+          ? this._t('card.sensor_tooltip', { distance: this._length(reading.distance) })
+          : undefined,
     });
   }
 
-  private _renderStats(silo: Silo, r: Reading, low: boolean): TemplateResult {
+  /** The title above the main value, with the grain after it, when `title_position` is `stats`. */
+  private _renderName(grain: string | undefined): TemplateResult {
+    return html`<div class="name">
+      <span class="title">${this._title()}</span>${grain ? html`<span class="subtitle">${grain}</span>` : nothing}
+    </div>`;
+  }
+
+  /**
+   * The main value and the rows. Without a reading, the same lines with dashes for values and the sensor's
+   * state as the caption, so the card keeps its height. With the last reading instead (`since` when it
+   * stopped), its values greyed and a badge with the state and how long ago. The message says why in a tooltip.
+   */
+  private _renderStats(silo: Silo, r: Reading | null, low: boolean, missing?: Missing, since?: number): TemplateResult {
     const cfg = this._view;
-    const values: Record<Row, string | undefined> = {
-      percent: this._percent(r.percent),
-      weight: r.weight === undefined ? undefined : this._weight(r.weight),
-      remaining: r.remaining === undefined ? undefined : this._weight(r.remaining),
-      volume: this._volume(r.volume),
-      level: this._length(r.level),
-      // A wall without rings has nothing to count, unless the grain is in the hopper or roof.
-      rings: silo.geometry.rings > 1 || r.position.kind !== 'rings' ? this._position(silo, r) : undefined,
-      distance: this._length(r.distance),
-    };
-    const main = this._main(silo, r);
+    const weighed = silo.density !== undefined;
+    const values: Record<Row, string | undefined> = r
+      ? {
+          percent: this._percent(r.percent),
+          weight: r.weight === undefined ? undefined : this._weight(r.weight),
+          remaining: r.remaining === undefined ? undefined : this._weight(r.remaining),
+          volume: this._volume(r.volume),
+          level: this._length(r.level),
+          // A wall without rings has nothing to count, unless the grain is in the hopper or roof.
+          rings: silo.geometry.rings > 1 || r.position.kind !== 'rings' ? this._position(silo, r) : undefined,
+          distance: this._length(r.distance),
+        }
+      : {
+          percent: DASH,
+          weight: weighed ? DASH : undefined,
+          remaining: weighed ? DASH : undefined,
+          volume: DASH,
+          level: DASH,
+          rings: silo.geometry.rings > 1 ? DASH : undefined,
+          distance: DASH,
+        };
+    const stateName = missing && this._t(`card.state_${missing.state === 'unavailable' ? 'unavailable' : 'unknown'}`);
+    const main = r ? this._main(silo, r) : ['', stateName!];
+    // Without a main value (`primary: none`), the line stays for the state and the badges.
+    const showValue = !r || cfg.primary !== 'none';
     const rows = cfg.rows
       .filter((row) => values[row] !== undefined)
       .map((row) => [row, this._t(`card.${row}`), values[row]!] as const);
     const icons = cfg.labels === 'icons';
 
     return html`
-      <div class="main ${low ? 'low' : ''}">
-        <span class="value">${main[0]}</span>
-        <span class="unit">${main[1]}</span>
-        ${low ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
-      </div>
-      <dl>
+      ${
+        showValue || low || missing
+          ? html`<div class="main ${low ? 'low' : ''} ${r ? '' : 'no-value'}" title=${missing?.message ?? nothing}>
+              ${r && showValue ? html`<span class="value">${main[0]}</span>` : nothing}
+              ${showValue ? html`<span class="unit">${main[1]}</span>` : nothing}
+              ${low ? html`<span class="badge"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t('card.low')}</span>` : nothing}
+              ${
+                r && missing
+                  ? html`<span class="badge stale ${missing.tooOld ? 'old' : ''}">
+                      <ha-icon icon=${missing.tooOld ? 'mdi:alert-outline' : 'mdi:clock-alert-outline'}></ha-icon
+                      >${stateName}${since ? ` · ${this._ago(since)}` : ''}
+                    </span>`
+                  : nothing
+              }
+            </div>`
+          : nothing
+      }
+      <dl class=${missing ? 'stale' : ''}>
         ${rows.map(
           ([row, label, value]) =>
             html`<div class="row ${icons ? 'with-icon' : ''}">
@@ -320,6 +513,15 @@ export class SiloCard extends LitElement {
       }
     }
     return [this._percent(r.percent), this._t('card.full')];
+  }
+
+  /** "3 h ago", in the card's language. */
+  private _ago(time: number): string {
+    const minutes = Math.max(1, Math.round((Date.now() - time) / 60_000));
+    const format = new Intl.RelativeTimeFormat(intlLocale(this._lang), { style: 'short' });
+    if (minutes < 60) return format.format(-minutes, 'minute');
+    if (minutes < 48 * 60) return format.format(-Math.round(minutes / 60), 'hour');
+    return format.format(-Math.round(minutes / 1440), 'day');
   }
 
   /** "4.3 of 7" on the rings, or the share of the hopper or roof that is full. */
@@ -391,6 +593,23 @@ export class SiloCard extends LitElement {
       font-size: 0.85em;
       color: var(--secondary-text-color);
     }
+    /* The title above the main value, the grain beside it; without the header the card starts with the body. */
+    .name {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+      margin-bottom: 2px;
+    }
+    .name .title {
+      min-width: 0;
+    }
+    .name .subtitle {
+      flex-shrink: 0;
+    }
+    .name + dl {
+      margin-top: 8px;
+    }
     .body {
       flex: 1 1 auto;
       min-height: 0;
@@ -460,6 +679,20 @@ export class SiloCard extends LitElement {
     .low .surface {
       stroke: color-mix(in srgb, var(--silo-low) 60%, black);
     }
+    /* The ring seams under the grain: darker on a light grain, lighter on a dark one, in light and dark themes. */
+    .seam {
+      --seam-on: var(--silo-grain);
+      stroke: color-mix(in srgb, var(--seam-on) 45%, black);
+      stroke-width: 1.5px;
+    }
+    @supports (color: lch(from red l c h)) {
+      .seam {
+        stroke: lch(from var(--seam-on) calc((62 - l) * 100) 0 0 / 0.45);
+      }
+    }
+    .low .seam {
+      --seam-on: var(--silo-low);
+    }
     .leg,
     .ground {
       stroke: var(--silo-wall);
@@ -470,12 +703,49 @@ export class SiloCard extends LitElement {
       stroke: var(--divider-color, rgba(0, 0, 0, 0.12));
       stroke-width: 2px;
     }
+    /*
+     * The sensor is a status light: green with a reading, orange blinking with only the last one, red
+     * blinking with none or one older than stale_after. The silo fades without a current reading, so it doesn't pass for the real level.
+     */
+    svg.silo {
+      --silo-status: var(--success-color, #43a047);
+    }
+    svg.status-stale {
+      --silo-status: var(--warning-color, #ffa600);
+    }
+    svg.status-old,
+    svg.status-none {
+      --silo-status: var(--error-color, #db4437);
+    }
+    .status-stale .structure,
+    .status-old .structure {
+      opacity: 0.5;
+      filter: grayscale(0.6);
+    }
+    .status-none .structure {
+      opacity: 0.25;
+    }
     .sensor rect {
-      fill: var(--primary-color);
+      fill: var(--silo-status);
       stroke: none;
     }
+    .status-stale .sensor rect,
+    .status-old .sensor rect,
+    .status-none .sensor rect {
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      50% {
+        opacity: 0.25;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sensor rect {
+        animation: none !important;
+      }
+    }
     .beam {
-      stroke: var(--primary-color);
+      stroke: var(--silo-status);
       stroke-width: 1px;
       stroke-dasharray: 3 3;
       opacity: 0.8;
@@ -502,6 +772,14 @@ export class SiloCard extends LitElement {
     .main .unit {
       color: var(--secondary-text-color);
     }
+    /* The state alone, as tall as a value would be, so the rows stay where they are. */
+    .main.no-value {
+      min-height: 2.2em;
+      align-items: center;
+    }
+    dl.stale dd {
+      color: var(--secondary-text-color);
+    }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -514,6 +792,14 @@ export class SiloCard extends LitElement {
       color: var(--silo-low);
       background: color-mix(in srgb, var(--silo-low) 16%, transparent);
       --mdc-icon-size: 14px;
+    }
+    .badge.stale {
+      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--secondary-text-color) 14%, transparent);
+    }
+    /* Past stale_after: the sensor stopped sending, a fault worth the red. */
+    .badge.old ha-icon {
+      color: var(--error-color, #db4437);
     }
     dl {
       margin: 0;
@@ -557,6 +843,7 @@ export class SiloCard extends LitElement {
     .message {
       padding: 8px 0;
       color: var(--secondary-text-color);
+      overflow-wrap: anywhere;
     }
 
     /*

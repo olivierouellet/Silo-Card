@@ -1,5 +1,5 @@
 import type { BottomType, Shape, TopType } from './geometry';
-import type { DensityUnit, LengthUnit, VolumeUnit, WeightUnit } from './units';
+import type { DensityUnit, Duration, LengthUnit, VolumeUnit, WeightUnit } from './units';
 import type { GrainId } from './const';
 
 /** The parts of Home Assistant's `hass` object this card uses. */
@@ -8,6 +8,7 @@ export interface HassEntity {
   state: string;
   attributes: Record<string, unknown>;
   last_updated: string;
+  last_changed: string;
 }
 
 export interface HomeAssistant {
@@ -17,6 +18,7 @@ export interface HomeAssistant {
   config?: { unit_system?: { length?: string } };
   language?: string;
   locale?: { language: string };
+  callWS?<T>(msg: Record<string, unknown>): Promise<T>;
 }
 
 export type Language = 'auto' | 'en' | 'fr';
@@ -79,14 +81,20 @@ export interface SiloCardConfig {
   icon?: string;
   color?: string;
   /** The big value at the top of the stats. */
-  primary?: Row;
+  primary?: Row | 'none';
   rows?: readonly Row[];
   /** The lines' names, or an icon for each (the name then shows on hover). */
   labels?: 'text' | 'icons';
   /** The silo beside the numbers, above them, or above them only when the card is narrow. */
   layout?: 'auto' | 'side' | 'stacked';
+  /** The title and icon in the header, or the title alone above the main value. */
+  title_position?: 'header' | 'stats';
   texture?: Texture;
   show_sensor?: boolean;
+  /** While the sensor has no reading, its last one from the recorder, marked as stale. */
+  show_last_reading?: boolean;
+  /** A reading older than this counts as none: the sensor is shown as unavailable. */
+  stale_after?: Duration;
   language?: Language;
 }
 
