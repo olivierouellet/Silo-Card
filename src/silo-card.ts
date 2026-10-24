@@ -376,7 +376,10 @@ export class SiloCard extends LitElement {
     const titleInStats = cfg.title_position === 'stats' && !!silo && !!(reading || missing);
 
     return html`
-      <ha-card class="layout-${cfg.layout}" style=${styleMap({ '--silo-grain': cssColor(cfg.color) })}>
+      <ha-card
+        class="layout-${cfg.layout} ${this._compact ? 'compact' : ''}"
+        style=${styleMap({ '--silo-grain': cssColor(cfg.color) })}
+      >
         ${
           titleInStats
             ? nothing
@@ -873,6 +876,25 @@ export class SiloCard extends LitElement {
       gap: 10px;
     }
     /* In a narrow card the value is cut short, not the icon. */
+    /* A compact card is as narrow as 88 px on a phone: less padding and gap leave its values the room. */
+    ha-card.compact {
+      padding: 12px 8px;
+    }
+    ha-card.compact .row.with-icon {
+      gap: 6px;
+    }
+    /* Narrower still (3 columns, under about 116 px): smaller text, so the values fit whole. */
+    @container (max-width: 100px) {
+      ha-card.compact .main .value {
+        font-size: 1.6em;
+      }
+      ha-card.compact .row {
+        font-size: 0.8em;
+      }
+      ha-card.compact dt.icon {
+        --mdc-icon-size: 16px;
+      }
+    }
     .row.with-icon dd {
       text-align: left;
       min-width: 0;
