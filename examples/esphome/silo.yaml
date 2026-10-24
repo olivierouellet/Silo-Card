@@ -124,6 +124,9 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: "m"
     accuracy_decimals: 3
+    # Updates Home Assistant even when the value hasn't changed, so the card's stale_after can tell a
+    # silo that isn't moving from a sensor that stopped sending
+    force_update: true
     filters:
       - lambda: |-
           float SENSOR_HEIGHT = $sensor_height;
