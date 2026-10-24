@@ -1,7 +1,7 @@
 {
   "name": "silo-card",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packageManager": "yarn@4.12.0",
   "description": "Lovelace card that draws a grain silo or bin, section by section, and shows how full it is from a distance sensor at the top · Carte Lovelace qui dessine un silo à grains et indique son niveau",
   "keywords": [
