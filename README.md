@@ -114,24 +114,24 @@ Full means filled to the eave, the top of the wall, which is how most bins are r
 | `title` | device name | Card title. |
 | `icon` | `mdi:silo` | Header icon. |
 | `color` | amber | Grain colour: a theme colour name (`amber`, `brown`, `green`…) or any CSS colour. |
-| `primary` | `percent` | The big value at the top: `percent` (“59% full”) or any of the `rows` below, for example `rings` (“3.8 of 7 rings”, or “60% of the hopper”). Without a grain, density or capacity, `weight` and `remaining` show the fill instead. `none`: no big value, only the `rows` (the sensor's state and the *Low* badge still show). |
-| `rows` | `[weight, remaining, level, rings]` | The lines beside the silo, in this order: `percent` (the fill), `weight` (needs a grain, density or capacity), `remaining` (room left, in weight), `volume`, `level` (grain height), `rings` (“4.3 of 7”, or how full the hopper or roof is) and `distance` (from the sensor down to the grain). |
+| `primary` | `percent` | The big value at the top: `percent` (“59% full”) or any of the `rows` below but `updated`, for example `rings` (“3.8 of 7 rings”, or “60%” for how full the hopper or roof is). Without a grain, density or capacity, `weight` and `remaining` show the fill instead. `none`: no big value, only the `rows` (the sensor's state and the *Low* badge still show). |
+| `rows` | `[weight, remaining, level, rings]` | The lines beside the silo, in this order: `percent` (the fill), `weight` (needs a grain, density or capacity), `remaining` (room left, in weight), `volume`, `level` (grain height), `rings` (“4.3 of 7”, or how full the hopper or roof is: “60%”), `distance` (from the sensor down to the grain) and `updated` (how long ago the sensor read: orange with only the last reading, red past `stale_after`). |
 | `texture` | `stipple` | Over the grain colour: `stipple` (fine dots), `layers` (soft wavy lines), `shaded` (no pattern: a round bin's shading) or `hatching` (thin 45° lines). |
-| `labels` | `text` | `text`: each line's name. `icons`: an icon instead (the name shows on hover). |
+| `labels` | `text` | `text`: each line's name. `icons`: an icon instead (the name shows on hover). A card 4 columns wide or less always shows icons. |
 | `layout` | `auto` | `auto`: the silo beside the numbers, above them when the card is narrow. `side` or `stacked` to choose. |
 | `title_position` | `header` | `header`: the title and icon above the card. `stats`: the title alone, with the grain, above the main value; the card is then shorter. |
 | `show_sensor` | `true` | Draw the sensor and its beam. The sensor is a status light: green with a reading, orange with only the last one, red with none or one older than `stale_after`. |
-| `show_last_reading` | `true` | While the sensor has no reading (unavailable or unknown), show its last one from the history, greyed, with how long ago. |
+| `show_last_reading` | `true` | While the sensor has no reading (unavailable or unknown), show its last one from the history, greyed. |
 | `stale_after` | — | Show the sensor as unavailable when its last reading is older than this: minutes (`90`), or `{days: 1}`, `{hours: 6}`… Off when not set. |
 | `language` | `auto` | `auto` (Home Assistant's language), `en` or `fr`. |
 
 Tap the card to open the sensor's history.
 
-When the sensor has no reading, the card keeps its layout: the silo is faded and the numbers are dashes, under the sensor's state. With `show_last_reading`, it shows the last reading the recorder kept instead (10 days by default), greyed, with a badge saying how long ago. The sensor's value is never changed: automations still see it unavailable.
+When the sensor has no reading, the card keeps its layout: the silo is faded and the numbers are dashes, under the sensor's state. With `show_last_reading`, it shows the last reading the recorder kept instead (10 days by default), greyed; the `updated` row says how long ago. The sensor's value is never changed: automations still see it unavailable.
 
 A sensor can also stop sending while Home Assistant still shows its last value. With `stale_after`, the card treats a reading older than that as none. Home Assistant only updates a sensor when its value changes, so give an ESPHome sensor `force_update: true` (as in [`examples/esphome/silo.yaml`](examples/esphome/silo.yaml)); otherwise a silo that isn't being filled or emptied looks stale.
 
-In a sections view the card is as tall as it needs (*Auto height* in the *Layout* tab). Given a fixed height there instead, it draws the silo smaller to fit, down to 3 rows. When the card is narrow, the silo goes above the numbers.
+In a sections view the card is as tall as it needs (*Auto height* in the *Layout* tab). Given a fixed height there instead, it draws the silo smaller to fit, down to 3 rows. When the card is narrow, the silo goes above the numbers. At 4 columns or less, the lines have icons, `updated` drops the “ago” (“5 h”), the main value drops “full” and “of 7 rings”, and `rings` drops “of 7”.
 
 ### Examples
 
@@ -307,24 +307,24 @@ Plein veut dire rempli jusqu’au bas du toit, le haut de la paroi, comme la cap
 | `title` | nom de l’appareil | Titre de la carte. |
 | `icon` | `mdi:silo` | Icône de l’en-tête. |
 | `color` | ambre | Couleur du grain : un nom de couleur du thème (`amber`, `brown`, `green`…) ou toute couleur CSS. |
-| `primary` | `percent` | La grande valeur en haut : `percent` (« 59 % plein ») ou n’importe laquelle des lignes `rows` ci-dessous, par exemple `rings` (« 3,8 sur 7 sections », ou « 60 % de la trémie »). Sans grain, masse volumique ni capacité, `weight` et `remaining` affichent plutôt le remplissage. `none` : pas de grande valeur, seulement les lignes `rows` (l’état du capteur et la pastille *Bas* s’affichent quand même). |
-| `rows` | `[weight, remaining, level, rings]` | Les lignes à côté du silo, dans cet ordre : `percent` (le remplissage), `weight` (poids; il faut un grain, une masse volumique ou une capacité), `remaining` (place libre, en poids), `volume`, `level` (hauteur du grain), `rings` (« 4,3 sur 7 » sections, ou à quel point la trémie ou le toit est plein) et `distance` (entre le capteur et le grain). |
+| `primary` | `percent` | La grande valeur en haut : `percent` (« 59 % plein ») ou n’importe laquelle des lignes `rows` ci-dessous sauf `updated`, par exemple `rings` (« 3,8 sur 7 sections », ou « 60 % » pour le remplissage de la trémie ou du toit). Sans grain, masse volumique ni capacité, `weight` et `remaining` affichent plutôt le remplissage. `none` : pas de grande valeur, seulement les lignes `rows` (l’état du capteur et la pastille *Bas* s’affichent quand même). |
+| `rows` | `[weight, remaining, level, rings]` | Les lignes à côté du silo, dans cet ordre : `percent` (le remplissage), `weight` (poids; il faut un grain, une masse volumique ou une capacité), `remaining` (place libre, en poids), `volume`, `level` (hauteur du grain), `rings` (« 4,3 sur 7 » sections, ou à quel point la trémie ou le toit est plein : « 60 % »), `distance` (entre le capteur et le grain) et `updated` (depuis quand le capteur a mesuré : orange avec seulement la dernière mesure, rouge passé `stale_after`). |
 | `texture` | `stipple` | Par-dessus la couleur du grain : `stipple` (pointillé), `layers` (couches ondulées), `shaded` (sans motif : l’ombrage d’une cellule ronde) ou `hatching` (hachures fines à 45°). |
-| `labels` | `text` | `text` : le nom de chaque ligne. `icons` : une icône à la place (le nom s’affiche au survol). |
+| `labels` | `text` | `text` : le nom de chaque ligne. `icons` : une icône à la place (le nom s’affiche au survol). Une carte de 4 colonnes ou moins affiche toujours les icônes. |
 | `layout` | `auto` | `auto` : le silo à côté des valeurs, au-dessus quand la carte est étroite. `side` ou `stacked` pour choisir. |
 | `title_position` | `header` | `header` : le titre et l’icône en haut de la carte. `stats` : le titre seul, avec le grain, au-dessus de la valeur principale ; la carte est alors moins haute. |
 | `show_sensor` | `true` | Dessiner le capteur et son faisceau. Le capteur est un voyant : vert avec une mesure, orange avec seulement la dernière, rouge sans mesure ou avec une plus vieille que `stale_after`. |
-| `show_last_reading` | `true` | Quand le capteur n’a pas de mesure (indisponible ou inconnu), afficher sa dernière dans l’historique, grisée, avec depuis quand. |
+| `show_last_reading` | `true` | Quand le capteur n’a pas de mesure (indisponible ou inconnu), afficher sa dernière dans l’historique, grisée. |
 | `stale_after` | — | Afficher le capteur comme indisponible quand sa dernière mesure est plus vieille que ce délai : en minutes (`90`), ou `{days: 1}`, `{hours: 6}`… Désactivé si absent. |
 | `language` | `auto` | `auto` (langue de Home Assistant), `en` ou `fr`. |
 
 Touchez la carte pour ouvrir l’historique du capteur.
 
-Quand le capteur n’a pas de mesure, la carte garde sa mise en page : le silo est estompé et les valeurs sont des tirets, sous l’état du capteur. Avec `show_last_reading`, elle affiche plutôt la dernière mesure gardée par l’enregistreur (10 jours par défaut), grisée, avec une pastille qui dit depuis quand. La valeur du capteur n’est jamais modifiée : les automatisations le voient toujours indisponible.
+Quand le capteur n’a pas de mesure, la carte garde sa mise en page : le silo est estompé et les valeurs sont des tirets, sous l’état du capteur. Avec `show_last_reading`, elle affiche plutôt la dernière mesure gardée par l’enregistreur (10 jours par défaut), grisée; la ligne `updated` dit depuis quand. La valeur du capteur n’est jamais modifiée : les automatisations le voient toujours indisponible.
 
 Un capteur peut aussi cesser d’envoyer pendant que Home Assistant affiche encore sa dernière valeur. Avec `stale_after`, la carte traite une mesure plus vieille que ce délai comme absente. Home Assistant ne met un capteur à jour que lorsque sa valeur change : ajoutez `force_update: true` au capteur ESPHome (comme dans [`examples/esphome/silo.yaml`](examples/esphome/silo.yaml)), sinon un silo qu’on ne remplit ni ne vide aura l’air périmé.
 
-Dans une vue en sections, la carte prend la hauteur qu’il lui faut (*Hauteur automatique* dans l’onglet *Mise en page*). Avec une hauteur fixe, elle dessine le silo plus petit pour s’y loger, jusqu’à 3 rangées. Quand la carte est étroite, le silo passe au-dessus des valeurs.
+Dans une vue en sections, la carte prend la hauteur qu’il lui faut (*Hauteur automatique* dans l’onglet *Mise en page*). Avec une hauteur fixe, elle dessine le silo plus petit pour s’y loger, jusqu’à 3 rangées. Quand la carte est étroite, le silo passe au-dessus des valeurs. À 4 colonnes ou moins, les lignes ont des icônes, `updated` perd le « il y a » (« 5 h ») la valeur principale perd « plein » et « sur 7 sections », et `rings` perd « sur 7 ».
 
 ### Exemples
 
