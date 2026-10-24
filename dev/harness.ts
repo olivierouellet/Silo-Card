@@ -409,6 +409,28 @@ const CASES: Case[] = [
     },
   },
   {
+    title: 'Steady layout · primary: none, no Low badge',
+    fill: 0.15,
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.silo_ble_low',
+      title_position: 'stats',
+      primary: 'none',
+      show_low_badge: false,
+    },
+  },
+  {
+    title: 'Steady layout · offline, no state shown',
+    fill: 0,
+    config: {
+      ...BIN_FOR_ICONS,
+      entity: 'sensor.offline',
+      title_position: 'stats',
+      primary: 'none',
+      show_unavailable: false,
+    },
+  },
+  {
     title: 'Too old · last update 5 h ago, stale_after: 1 h',
     fill: 0.5,
     config: {
