@@ -1,6 +1,6 @@
 import type { SiloCardConfig } from './types';
 
-export const CARD_VERSION = '0.4.0';
+export const CARD_VERSION = '0.5.0';
 export const CARD_TAG = 'silo-card';
 export const EDITOR_TAG = 'silo-card-editor';
 
